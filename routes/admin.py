@@ -161,10 +161,10 @@ def export_data():
         "Latitude (Optional)",
         "Longitude (Optional)",
         "Password (Optional)",
-        "Products (Format: name:min:max:preferred;)",
-        "Keywords (Semicolon separated)",
-        "Excluded Words (Semicolon separated)",
-        "Resellers (Semicolon separated)",
+        "Products (Format below)",
+        "Keywords (Leave empty)",
+        "Excluded Words (Leave empty)",
+        "Resellers (Leave empty)",
         "Only Preferred (1=Yes, 0=No)",
         "All Listings (1=Yes, 0=No)",
         "Good Deals (1=Yes, 0=No)",
@@ -195,14 +195,14 @@ def export_data():
         good_deals = 1 if pref.notification_mode == 'good_deal' else 0
         near_good_deals = 1 if pref.notification_mode == 'near_good_deal' else 0
         
-        # Extract products with better formatting
+        # Extract products with better human-readable formatting
         products_list = []
         for product in pref.products:
-            # Format: name:min_price:max_price:preferred
-            is_preferred = 1 if product.is_preferred else 0
-            products_list.append(f"{product.product_name}:0:{product.max_price}:{is_preferred}")
+            # Format: [Product=iPhone 16 Pro Max|MaxPrice=900|Preferred=Yes]
+            is_preferred = "Yes" if product.is_preferred else "No"
+            products_list.append(f"[Product={product.product_name}|MaxPrice={product.max_price}|Preferred={is_preferred}]")
         
-        products_str = ";".join(products_list)
+        products_str = "".join(products_list)
         
         # Create row with available data and empty fields for the rest
         row = [
@@ -215,10 +215,10 @@ def export_data():
             "",                          # fixed_lat (not in original schema)
             "",                          # fixed_lon (not in original schema)
             "",                          # password (not in original schema)
-            products_str,                # products
-            "",                          # keywords (not in original schema)
-            "",                          # excluded_words (not in original schema)
-            "",                          # resellers (not in original schema)
+            products_str,                # products (human-readable format)
+            "",                          # keywords (left empty as requested)
+            "",                          # excluded_words (left empty as requested)
+            "",                          # resellers (left empty as requested)
             mode_only_preferred,         # mode_only_preferred
             non_good_deals,              # non_good_deals
             good_deals,                  # good_deals
@@ -232,10 +232,11 @@ def export_data():
     writer.writerow(["--- INSTRUCTIONS ---", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
     writer.writerow(["1. Do not modify the column headers (row 4)", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
     writer.writerow(["2. Each row represents one user", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["3. For products, use the format: name:min_price:max_price:preferred; (1=preferred, 0=not preferred)", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["4. For keywords, excluded_words, and resellers, separate multiple values with semicolons", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["5. For modes, only ONE should be set to 1, the rest should be 0", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["6. When importing, the unique_userid is used to match existing users", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+    writer.writerow(["3. Product format explanation:", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+    writer.writerow(["   [Product=iPhone 16 Pro Max|MaxPrice=900|Preferred=Yes]", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+    writer.writerow(["   You can add multiple products by connecting them: [Product=iPhone 16|MaxPrice=650|Preferred=Yes][Product=iPhone 15|MaxPrice=500|Preferred=No]", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+    writer.writerow(["4. For modes, only ONE should be set to 1, the rest should be 0", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+    writer.writerow(["5. When importing, the unique_userid is used to match existing users", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
     
     # Prepare the output for download
     output.seek(0)
@@ -350,33 +351,39 @@ def import_data():
                         for product in preference.products:
                             db.session.delete(product)
                         
-                        # Add new products from CSV
-                        if 'products' in row and row['products']:
-                            for product_data in row['products'].split(';'):
-                                if product_data and ':' in product_data:
-                                    try:
-                                        parts = product_data.split(':')
-                                        if len(parts) >= 4:
-                                            name = parts[0].strip()
-                                            min_price = parts[1].strip() or '0'
-                                            max_price = parts[2].strip() or '0'
-                                            preferred = parts[3].strip() or '0'
-                                            
-                                            # Validate the product name is in our list
-                                            if name in IPHONE_MODELS:
-                                                product_pref = ProductPreference(
-                                                    preference_id=preference.id,
-                                                    product_name=name,
-                                                    max_price=int(float(max_price)),
-                                                    is_preferred=(int(preferred) == 1)
-                                                )
-                                                db.session.add(product_pref)
-                                            else:
-                                                print(f"Warning: Skipping unknown product name: {name}")
-                                        else:
-                                            print(f"Warning: Invalid product format: {product_data}")
-                                    except Exception as product_error:
-                                        print(f"Error processing product: {product_data}, Error: {product_error}")
+                        # Add new products from CSV using the new human-readable format
+                        products_data = row.get('products', '')
+                        if products_data:
+                            # Parse products in the format [Product=X|MaxPrice=Y|Preferred=Z]
+                            import re
+                            
+                            # Find all product entries using regex
+                            product_matches = re.findall(r'\[(Product=([^|]+)\|MaxPrice=([^|]+)\|Preferred=([^]]+))\]', products_data)
+                            
+                            for _, name, max_price, preferred in product_matches:
+                                name = name.strip()
+                                
+                                # Convert max_price to integer
+                                try:
+                                    max_price = int(float(max_price.strip()))
+                                except:
+                                    max_price = 0
+                                
+                                # Convert preferred to boolean (Yes/No or 1/0)
+                                preferred_value = preferred.strip().lower()
+                                is_preferred = (preferred_value == 'yes' or preferred_value == '1' or preferred_value == 'true')
+                                
+                                # Validate the product name is in our list
+                                if name in IPHONE_MODELS:
+                                    product_pref = ProductPreference(
+                                        preference_id=preference.id,
+                                        product_name=name,
+                                        max_price=max_price,
+                                        is_preferred=is_preferred
+                                    )
+                                    db.session.add(product_pref)
+                                else:
+                                    print(f"Warning: Skipping unknown product name: {name}")
                         
                         db.session.commit()
                         
