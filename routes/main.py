@@ -28,21 +28,21 @@ def telegram_form():
     user_id = g.telegram_user_id
     user_name = g.telegram_user_name
     
-    # Store Telegram info in session for maintaining state during submission
-    session['telegram_user_id'] = user_id
-    session['telegram_user_name'] = user_name
+    logger.info(f"Processing telegram-form for user_id={user_id}, user_name={user_name}")
     
     # Check if user already has a preference record
     preference = Preference.query.filter_by(user_id=user_id).first()
     
     # If user exists, redirect to edit their data
     if preference:
+        logger.info(f"User {user_id} already has preferences, redirecting to edit page")
         return redirect(url_for('main.edit_telegram_preference'))
     
     # Otherwise, show the new form
     form = PreferenceForm()
     
     if form.validate_on_submit():
+        logger.info(f"Form submitted for new user {user_id}")
         # Create new preference with Telegram user info
         preference = Preference(
             location=form.location.data,
@@ -94,21 +94,25 @@ def edit_telegram_preference():
     user_id = g.telegram_user_id
     user_name = g.telegram_user_name
     
-    # Store Telegram info in session for maintaining state
-    session['telegram_user_id'] = user_id
-    session['telegram_user_name'] = user_name
+    logger.info(f"Processing edit form for user_id={user_id}, user_name={user_name}")
     
     # Get the preference by Telegram user_id
-    preference = Preference.query.filter_by(user_id=user_id).first_or_404()
+    preference = Preference.query.filter_by(user_id=user_id).first()
+    
+    # If no preference exists yet, redirect to the creation form
+    if not preference:
+        logger.info(f"No preference found for user {user_id}, redirecting to creation form")
+        return redirect(url_for('main.telegram_form'))
     
     form = PreferenceForm()
     
     if form.validate_on_submit():
+        logger.info(f"Form submitted for editing user {user_id}")
         # Update the preference
         preference.location = form.location.data
         preference.suburb = form.suburb.data
         preference.notification_mode = form.notification_mode.data
-        preference.user_name = g.telegram_user_name  # Update name in case it changed
+        preference.user_name = user_name  # Update name in case it changed
         
         # Process product preferences
         # First, delete existing preferences
@@ -154,18 +158,17 @@ def edit_telegram_preference():
                           default_prices=DEFAULT_PRICES,
                           product_prefs=product_prefs,
                           preference=preference,
-                          telegram_user_name=g.telegram_user_name)
+                          telegram_user_name=user_name)
 
 @main_bp.route('/telegram-thank-you')
+@verify_telegram_auth
 def telegram_thank_you():
     """Thank you page for Telegram users"""
-    # Get Telegram user info from session
-    user_id = session.get('telegram_user_id')
-    user_name = session.get('telegram_user_name')
+    # Get Telegram user info from the auth decorator
+    user_id = g.telegram_user_id
+    user_name = g.telegram_user_name
     
-    if not user_id:
-        # If no session, redirect to access denied
-        return redirect(url_for('main.access_denied'))
+    logger.info(f"Showing thank you page for user_id={user_id}, user_name={user_name}")
     
     # Get the preference to display a summary
     preference = Preference.query.filter_by(user_id=user_id).first_or_404()

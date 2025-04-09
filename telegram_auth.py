@@ -3,7 +3,7 @@ import hmac
 import time
 import logging
 from functools import wraps
-from flask import request, abort, g, current_app, redirect, url_for
+from flask import request, abort, g, current_app, redirect, url_for, session
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -12,7 +12,15 @@ def verify_telegram_auth(f):
     """Decorator to verify Telegram authentication from URL parameters."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Get required parameters from URL
+        # First, check if we have a valid session already
+        if 'telegram_user_id' in session and 'telegram_user_name' in session:
+            # Use the session data
+            g.telegram_user_id = session['telegram_user_id']
+            g.telegram_user_name = session['telegram_user_name']
+            logger.info(f"Using session auth for user: {g.telegram_user_name}")
+            return f(*args, **kwargs)
+            
+        # If not, get parameters from URL
         user_id = request.args.get('user_id')
         user_name = request.args.get('user_name')
         timestamp = request.args.get('timestamp')
@@ -26,9 +34,9 @@ def verify_telegram_auth(f):
             logger.warning("Missing required parameters")
             return redirect(url_for('main.access_denied'))
         
-        # Check if link has expired (30 minutes)
+        # Check if link has expired (30 minutes) - temporarily extend to 120 minutes
         now = int(time.time())
-        if now - int(timestamp) > 1800:  # 30 minutes expiration
+        if now - int(timestamp) > 7200:  # 120 minutes expiration
             logger.warning(f"Link expired. Current time: {now}, Timestamp: {timestamp}")
             return redirect(url_for('main.access_denied', reason='expired'))
         
@@ -65,6 +73,10 @@ def verify_telegram_auth(f):
         # Store validated user info in Flask g object for the view function
         g.telegram_user_id = user_id
         g.telegram_user_name = user_name
+        
+        # Also store in session for future requests
+        session['telegram_user_id'] = user_id
+        session['telegram_user_name'] = user_name
         
         logger.info(f"Authentication successful for user: {user_name}")
         return f(*args, **kwargs)

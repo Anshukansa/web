@@ -60,6 +60,8 @@ def start(update: Update, context: CallbackContext) -> None:
     user_id = user.id
     user_name = f"{user.first_name} {user.last_name}" if user.last_name else user.first_name
     
+    logger.info(f"Start command from user: {user_id} ({user_name})")
+    
     # Generate secure link for this specific Telegram user
     secure_link = generate_secure_link(user_id, user_name)
     
@@ -81,6 +83,8 @@ def check_preferences(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
     user_id = user.id
     user_name = f"{user.first_name} {user.last_name}" if user.last_name else user.first_name
+    
+    logger.info(f"Check preferences command from user: {user_id} ({user_name})")
     
     # Generate secure link for this user
     secure_link = generate_secure_link(user_id, user_name)

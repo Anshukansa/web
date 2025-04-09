@@ -17,7 +17,10 @@ class Config:
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')  # Change in production!
     
     # Session settings
-    PERMANENT_SESSION_LIFETIME = timedelta(hours=1)
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=24)  # Increased from 1 hour to 24 hours
+    SESSION_TYPE = 'filesystem'
+    SESSION_PERMANENT = True
+    SESSION_USE_SIGNER = True
     
     # Mail settings for password reset (can be implemented later)
     MAIL_SERVER = os.environ.get('MAIL_SERVER')
