@@ -1,22 +1,54 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, jsonify, g
 from models import db, Preference, ProductPreference, IPHONE_MODELS, DEFAULT_PRICES
 from forms import PreferenceForm
+from telegram_auth import verify_telegram_auth
 
 main_bp = Blueprint('main', __name__)
 
-@main_bp.route('/', methods=['GET', 'POST'])
+@main_bp.route('/')
 def index():
+    """Public index page - redirects to access denied"""
+    return redirect(url_for('main.access_denied'))
+
+@main_bp.route('/access-denied')
+def access_denied():
+    """Access denied page for unauthorized access attempts"""
+    reason = request.args.get('reason', 'unauthorized')
+    return render_template('access_denied.html', reason=reason)
+
+@main_bp.route('/telegram-form', methods=['GET', 'POST'])
+@verify_telegram_auth
+def telegram_form():
+    """Form accessible only through Telegram authentication"""
+    # Get Telegram user info from the auth decorator
+    user_id = g.telegram_user_id
+    user_name = g.telegram_user_name
+    
+    # Check if user already has a preference record
+    preference = Preference.query.filter_by(user_id=user_id).first()
+    
+    # If user exists, redirect to edit their data
+    if preference:
+        return redirect(url_for('main.edit_telegram_preference', user_id=user_id))
+    
+    # Otherwise, show the new form
     form = PreferenceForm()
     
     if form.validate_on_submit():
-        # Create a new preference entry
+        # Create new preference with Telegram user info
         preference = Preference(
             location=form.location.data,
             suburb=form.suburb.data,
-            notification_mode=form.notification_mode.data
+            notification_mode=form.notification_mode.data,
+            user_id=user_id,  # Set Telegram ID as user_id
+            user_name=user_name,  # Set Telegram name as user_name
+            activation_status=True
         )
         db.session.add(preference)
         db.session.flush()  # Get the ID without committing
+        
+        # Set unique_userid based on the ID
+        preference.unique_userid = f"telegram_{preference.id}"
         
         # Process product preferences
         for model in IPHONE_MODELS:
@@ -35,31 +67,26 @@ def index():
         
         db.session.commit()
         
-        # Redirect to thank you page with the edit token
-        return redirect(url_for('main.thank_you', token=preference.edit_token))
+        # Redirect to thank you page
+        return redirect(url_for('main.telegram_thank_you'))
     
     # Pre-fill the form with default values
-    return render_template('form.html', 
-                           form=form, 
-                           iphone_models=IPHONE_MODELS,
-                           default_prices=DEFAULT_PRICES)
+    return render_template('telegram_form.html', 
+                          form=form, 
+                          iphone_models=IPHONE_MODELS,
+                          default_prices=DEFAULT_PRICES,
+                          telegram_user_name=user_name)
 
-@main_bp.route('/thank-you/<token>')
-def thank_you(token):
-    # Get the preference to display a summary
-    preference = Preference.query.filter_by(edit_token=token).first_or_404()
+@main_bp.route('/edit-telegram/<user_id>', methods=['GET', 'POST'])
+@verify_telegram_auth
+def edit_telegram_preference(user_id):
+    """Edit preference for Telegram users"""
+    # Security check - user can only edit their own data
+    if g.telegram_user_id != user_id:
+        return redirect(url_for('main.access_denied', reason='unauthorized'))
     
-    # Create the edit URL
-    edit_url = url_for('main.edit_preference', token=token, _external=True)
-    
-    return render_template('thank_you.html', 
-                          preference=preference,
-                          edit_url=edit_url)
-
-@main_bp.route('/edit/<token>', methods=['GET', 'POST'])
-def edit_preference(token):
-    # Get the preference by token
-    preference = Preference.query.filter_by(edit_token=token).first_or_404()
+    # Get the preference by Telegram user_id
+    preference = Preference.query.filter_by(user_id=user_id).first_or_404()
     
     form = PreferenceForm()
     
@@ -68,6 +95,7 @@ def edit_preference(token):
         preference.location = form.location.data
         preference.suburb = form.suburb.data
         preference.notification_mode = form.notification_mode.data
+        preference.user_name = g.telegram_user_name  # Update name in case it changed
         
         # Process product preferences
         # First, delete existing preferences
@@ -91,7 +119,7 @@ def edit_preference(token):
         
         db.session.commit()
         flash('Your preferences have been updated successfully!', 'success')
-        return redirect(url_for('main.thank_you', token=preference.edit_token))
+        return redirect(url_for('main.telegram_thank_you'))
     
     # Pre-fill the form with existing values
     form.location.data = preference.location
@@ -106,9 +134,36 @@ def edit_preference(token):
             'is_preferred': product.is_preferred
         }
     
-    return render_template('edit_form.html',
+    return render_template('telegram_edit_form.html',
                           form=form,
                           iphone_models=IPHONE_MODELS,
                           default_prices=DEFAULT_PRICES,
                           product_prefs=product_prefs,
-                          preference=preference)
+                          preference=preference,
+                          telegram_user_name=g.telegram_user_name)
+
+@main_bp.route('/telegram-thank-you')
+@verify_telegram_auth
+def telegram_thank_you():
+    """Thank you page for Telegram users"""
+    # Get Telegram user info
+    user_id = g.telegram_user_id
+    user_name = g.telegram_user_name
+    
+    # Get the preference to display a summary
+    preference = Preference.query.filter_by(user_id=user_id).first_or_404()
+    
+    return render_template('telegram_thank_you.html', 
+                          preference=preference,
+                          telegram_user_name=user_name)
+
+# Disable direct access to old routes
+@main_bp.route('/thank-you/<token>')
+def thank_you(token):
+    """Legacy thank you page - disabled"""
+    return redirect(url_for('main.access_denied'))
+
+@main_bp.route('/edit/<token>', methods=['GET', 'POST'])
+def edit_preference(token):
+    """Legacy edit page - disabled"""
+    return redirect(url_for('main.access_denied'))

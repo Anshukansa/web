@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Access Denied - iPhone Flippers{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white">
+                <h2 class="card-title mb-0">Access Denied</h2>
+            </div>
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle text-danger fa-5x mb-3"></i>
+                <h3>Direct access is not allowed</h3>
+                
+                {% if reason == 'expired' %}
+                    <p class="lead">Your secure link has expired.</p>
+                {% elif reason == 'invalid' %}
+                    <p class="lead">Invalid or tampered secure link detected.</p>
+                {% else %}
+                    <p class="lead">This form is only accessible through our Telegram bot.</p>
+                {% endif %}
+                
+                <div class="alert alert-info mt-4">
+                    <h5><i class="fab fa-telegram me-2"></i>Access via Telegram</h5>
+                    <p>To access iPhone Flippers, please use our official Telegram bot:</p>
+                    <a href="https://t.me/iPhoneFlippersBot" class="btn btn-primary">
+                        <i class="fab fa-telegram me-2"></i>Open Telegram Bot
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
