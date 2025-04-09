@@ -23,6 +23,14 @@ class Preference(db.Model):
     suburb = db.Column(db.String(100), nullable=True)
     notification_mode = db.Column(db.String(20), nullable=False)
     
+    # New admin-editable fields
+    user_id = db.Column(db.String(64), nullable=True)
+    user_name = db.Column(db.String(100), nullable=True)
+    activation_status = db.Column(db.Boolean, default=True)
+    expiry_date = db.Column(db.Date, nullable=True)
+    fixed_lat = db.Column(db.String(20), nullable=True)
+    fixed_lon = db.Column(db.String(20), nullable=True)
+    
     # Relationship with product preferences
     products = db.relationship('ProductPreference', backref='preference', lazy=True, cascade="all, delete-orphan")
     
@@ -43,6 +51,12 @@ class Preference(db.Model):
             'location': self.location,
             'suburb': self.suburb,
             'notification_mode': self.notification_mode,
+            'user_id': self.user_id,
+            'user_name': self.user_name,
+            'activation_status': self.activation_status,
+            'expiry_date': self.expiry_date.isoformat() if self.expiry_date else None,
+            'fixed_lat': self.fixed_lat,
+            'fixed_lon': self.fixed_lon,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'products': [product.as_dict() for product in self.products]
@@ -88,3 +102,7 @@ DEFAULT_PRICES = {
     "iPhone XS Max": 300, "iPhone XS": 250, "iPhone XR": 200, "iPhone X": 200,
     "iPhone SE (2022)": 150, "iPhone SE (2020)": 100
 }
+
+# Default keywords and excluded words
+DEFAULT_KEYWORDS = ["iphone"]
+DEFAULT_EXCLUDED_WORDS = ['warranty', 'controller', 'for', 'stand', 'car', 'names', 'stereo', 'LCD', 'C@$h', 'Ca$h', 'shop']
