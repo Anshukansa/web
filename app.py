@@ -42,7 +42,8 @@ def create_app(config_class=config.Config):
     
     return app
 
-app = create_app()  # Create the app at the module level
+# Create app at module level for Gunicorn
+app = create_app()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
