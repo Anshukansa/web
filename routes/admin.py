@@ -135,6 +135,9 @@ def update_admin_fields(id):
     preference = Preference.query.get_or_404(id)
     
     # Update fields from form data
+    # Handle unique_userid (new field)
+    preference.unique_userid = request.form.get('unique_userid', '') or f"user_{preference.id}"
+    
     preference.user_id = request.form.get('user_id', '')
     preference.user_name = request.form.get('user_name', '')
     preference.activation_status = True if request.form.get('activation_status') == '1' else False
@@ -218,8 +221,8 @@ def export_data():
         
         # Write data rows for users
         for pref in preferences:
-            # Generate a unique ID for this user
-            unique_userid = f"user_{pref.id}"
+            # Generate a unique ID for this user or use the one provided by admin
+            unique_userid = pref.unique_userid or f"user_{pref.id}"
             
             # Set default mode values based on notification_mode
             mode_only_preferred = 1 if pref.notification_mode == 'only_preferred' else 0
@@ -354,8 +357,8 @@ def export_single_response(id):
         reseller_writer = csv.writer(reseller_output)
         reseller_writer.writerow(['unique_userid', 'reseller_name'])
         
-        # Generate a unique ID for this user
-        unique_userid = f"user_{preference.id}"
+        # Generate a unique ID for this user or use the one provided by admin
+        unique_userid = preference.unique_userid or f"user_{preference.id}"
         
         # Set default mode values based on notification_mode
         mode_only_preferred = 1 if preference.notification_mode == 'only_preferred' else 0
@@ -464,8 +467,8 @@ def export_csv():
     
     # Write data rows
     for pref in preferences:
-        # Generate a unique ID for this user (using original ID with a prefix)
-        unique_userid = f"user_{pref.id}"
+        # Generate a unique ID for this user or use the one provided by admin
+        unique_userid = pref.unique_userid or f"user_{pref.id}"
         
         # Set default mode values based on notification_mode
         mode_only_preferred = 1 if pref.notification_mode == 'only_preferred' else 0
@@ -566,7 +569,7 @@ def import_data():
                         if not row.get('unique_userid') or row.get('unique_userid').startswith('---'):
                             continue
                             
-                        # Find or create a new preference entry based on unique_userid
+                        # Get the unique_userid from the CSV
                         unique_userid = row['unique_userid'].strip()
                         
                         # Extract location from the CSV
@@ -585,17 +588,18 @@ def import_data():
                             notification_mode = 'near_good_deal'
                         elif row.get('non_good_deals') and int(row.get('non_good_deals', 0)) == 1:
                             notification_mode = 'all'
+                            
+                        # First try to find by unique_userid if it exists in our database
+                        preference = Preference.query.filter_by(unique_userid=unique_userid).first()
                         
-                        # Look up by unique_userid in the format "user_X"
-                        if unique_userid.startswith('user_'):
+                        # If not found by unique_userid, try to match by the format "user_X"
+                        if not preference and unique_userid.startswith('user_'):
                             try:
                                 pref_id = int(unique_userid.split('_')[1])
                                 preference = Preference.query.get(pref_id)
                             except:
                                 preference = None
-                        else:
-                            preference = None
-                            
+                                
                         if preference:
                             # Update existing preference
                             preference.location = location
@@ -603,6 +607,7 @@ def import_data():
                             preference.notification_mode = notification_mode
                             
                             # Update admin fields
+                            preference.unique_userid = unique_userid
                             preference.user_id = row.get('user_id', '').strip() if row.get('user_id') else ''
                             preference.user_name = row.get('user_name', '').strip() if row.get('user_name') else ''
                             preference.activation_status = int(row.get('activation_status', 1)) == 1
@@ -627,6 +632,7 @@ def import_data():
                                 location=location,
                                 suburb=row.get('suburb', '').strip() if row.get('suburb') else '',
                                 notification_mode=notification_mode,
+                                unique_userid=unique_userid,
                                 user_id=row.get('user_id', '').strip() if row.get('user_id') else '',
                                 user_name=row.get('user_name', '').strip() if row.get('user_name') else '',
                                 activation_status=int(row.get('activation_status', 1)) == 1

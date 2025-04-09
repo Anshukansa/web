@@ -24,6 +24,7 @@ class Preference(db.Model):
     notification_mode = db.Column(db.String(20), nullable=False)
     
     # New admin-editable fields
+    unique_userid = db.Column(db.String(64), nullable=True)  # NEW: Added unique_userid
     user_id = db.Column(db.String(64), nullable=True)
     user_name = db.Column(db.String(100), nullable=True)
     activation_status = db.Column(db.Boolean, default=True)
@@ -44,10 +45,15 @@ class Preference(db.Model):
     def __init__(self, **kwargs):
         super(Preference, self).__init__(**kwargs)
         self.edit_token = secrets.token_urlsafe(32)
+        # Set default unique_userid based on ID if not provided
+        if not kwargs.get('unique_userid'):
+            # This will be updated after the ID is generated
+            self.unique_userid = None
     
     def as_dict(self):
         return {
             'id': self.id,
+            'unique_userid': self.unique_userid or f"user_{self.id}",
             'location': self.location,
             'suburb': self.suburb,
             'notification_mode': self.notification_mode,
@@ -61,6 +67,10 @@ class Preference(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'products': [product.as_dict() for product in self.products]
         }
+    
+    # Helper method to get the unique_userid (with fallback)
+    def get_unique_userid(self):
+        return self.unique_userid or f"user_{self.id}"
 
 class ProductPreference(db.Model):
     id = db.Column(db.Integer, primary_key=True)

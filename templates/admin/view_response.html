@@ -108,8 +108,9 @@
                             <label class="fw-bold text-danger">Unique UserID:</label>
                             <div class="input-group">
                                 <span class="input-group-text bg-danger text-white"><i class="fas fa-key"></i></span>
-                                <input type="text" class="form-control" value="user_{{ preference.id }}" readonly>
+                                <input type="text" class="form-control" value="{{ preference.unique_userid or 'user_' + preference.id|string }}" readonly>
                             </div>
+                            <small class="text-muted">Used to link data across files in export</small>
                         </div>
                         <div class="mb-3">
                             <label class="fw-bold text-danger">User ID:</label>
@@ -325,12 +326,20 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
+                                <label class="form-label fw-bold">Unique UserID</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-danger text-white"><i class="fas fa-key"></i></span>
+                                    <input type="text" class="form-control" name="unique_userid" value="{{ preference.unique_userid or 'user_' + preference.id|string }}">
+                                </div>
+                                <div class="form-text">Primary identifier used to link data across exported files</div>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label fw-bold">User ID</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-danger text-white"><i class="fas fa-id-badge"></i></span>
                                     <input type="text" class="form-control" name="user_id" value="{{ preference.user_id or '' }}">
                                 </div>
-                                <div class="form-text">Unique identifier for this user</div>
+                                <div class="form-text">Secondary identifier for this user</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">User Name</label>
