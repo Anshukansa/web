@@ -273,6 +273,73 @@ For importing, make sure unique_userid values match across all files.
         mimetype='application/zip'
     )
 
+@admin_bp.route('/export_response/<int:id>')
+@login_required
+def export_single_response(id):
+    # Retrieve the specific preference by ID
+    preference = Preference.query.get_or_404(id)
+
+    # Create the CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Define the header for the CSV file
+    header = [
+        'unique_userid', 'user_id', 'user_name', 'location', 'activation_status',
+        'expiry_date', 'fixed_lat', 'fixed_lon', 'password',
+        'mode_only_preferred', 'non_good_deals', 'good_deals', 'near_good_deals'
+    ]
+    writer.writerow(header)
+
+    # Prepare data for the specific response
+    unique_userid = f"user_{preference.id}"
+    mode_only_preferred = 1 if preference.notification_mode == 'only_preferred' else 0
+    non_good_deals = 1 if preference.notification_mode == 'all' else 0
+    good_deals = 1 if preference.notification_mode == 'good_deal' else 0
+    near_good_deals = 1 if preference.notification_mode == 'near_good_deal' else 0
+
+    user_row = [
+        unique_userid,
+        "",  # user_id (not in original schema)
+        "",  # user_name (not in original schema)
+        preference.location,
+        1,  # activation_status (default to active)
+        "",  # expiry_date (not in original schema)
+        "",  # fixed_lat (not in original schema)
+        "",  # fixed_lon (not in original schema)
+        "",  # password (not in original schema)
+        mode_only_preferred,
+        non_good_deals,
+        good_deals,
+        near_good_deals
+    ]
+    writer.writerow(user_row)
+
+    # Prepare product data for this preference
+    for product in preference.products:
+        product_row = [
+            unique_userid,
+            product.product_name,
+            100,  # min_price (set to 100 as requested)
+            product.max_price,
+            1 if product.is_preferred else 0
+        ]
+        writer.writerow(product_row)
+
+    # Prepare the output for download
+    output.seek(0)
+
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f'iphone_flippers_response_{id}_{timestamp}.csv',
+        mimetype='text/csv'
+    )
+
+
 @admin_bp.route('/export_csv')
 @login_required
 def export_csv():
