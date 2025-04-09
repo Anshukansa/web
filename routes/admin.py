@@ -144,12 +144,27 @@ def export_data():
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # Write header row
-    header = ['ID', 'Location', 'Suburb', 'Notification Mode', 'Created At', 'Updated At']
-    
-    # Add headers for each iPhone model (max price and preferred)
-    for model in IPHONE_MODELS:
-        header.extend([f'{model} - Max Price', f'{model} - Preferred'])
+    # Write header row for the new database schema
+    header = [
+        # Users table
+        'unique_userid', 'user_id', 'user_name', 'location', 'activation_status', 
+        'expiry_date', 'fixed_lat', 'fixed_lon', 'password',
+        
+        # Product prices (semicolon separated format: "name:min_price:max_price:preferred;")
+        'products',
+        
+        # Keywords (semicolon separated)
+        'keywords',
+        
+        # Excluded words (semicolon separated)
+        'excluded_words',
+        
+        # Resellers (semicolon separated)
+        'resellers',
+        
+        # User modes
+        'mode_only_preferred', 'non_good_deals', 'good_deals', 'near_good_deals'
+    ]
     
     writer.writerow(header)
     
@@ -158,26 +173,47 @@ def export_data():
     
     # Write data rows
     for pref in preferences:
-        # Start with basic info
-        row = [
-            pref.id, 
-            pref.location, 
-            pref.suburb, 
-            pref.notification_mode,
-            pref.created_at.strftime('%Y-%m-%d %H:%M:%S') if pref.created_at else '',
-            pref.updated_at.strftime('%Y-%m-%d %H:%M:%S') if pref.updated_at else ''
-        ]
+        # Generate a unique ID for this user (using original ID with a prefix)
+        unique_userid = f"user_{pref.id}"
         
-        # Create dictionary of product preferences for easier lookup
-        product_dict = {p.product_name: p for p in pref.products}
+        # Set default mode values based on notification_mode
+        mode_only_preferred = 1 if pref.notification_mode == 'only_preferred' else 0
+        non_good_deals = 1 if pref.notification_mode == 'all' else 0
+        good_deals = 1 if pref.notification_mode == 'good_deal' else 0
+        near_good_deals = 1 if pref.notification_mode == 'near_good_deal' else 0
         
-        # Add data for each iPhone model
-        for model in IPHONE_MODELS:
-            if model in product_dict:
-                product = product_dict[model]
-                row.extend([product.max_price, 'Yes' if product.is_preferred else 'No'])
+        # Extract products
+        products_list = []
+        for product in pref.products:
+            if product.is_preferred:
+                # Format: name:min_price:max_price:preferred
+                # Using 0 as min_price since it's not in the original schema
+                products_list.append(f"{product.product_name}:0:{product.max_price}:1")
             else:
-                row.extend(['', ''])
+                products_list.append(f"{product.product_name}:0:{product.max_price}:0")
+        
+        products_str = ";".join(products_list)
+        
+        # Create row with available data and empty fields for the rest
+        row = [
+            unique_userid,               # unique_userid
+            "",                          # user_id (not in original schema)
+            "",                          # user_name (not in original schema)
+            pref.location,               # location
+            1,                           # activation_status (default to active)
+            "",                          # expiry_date (not in original schema)
+            "",                          # fixed_lat (not in original schema)
+            "",                          # fixed_lon (not in original schema)
+            "",                          # password (not in original schema)
+            products_str,                # products
+            "",                          # keywords (not in original schema)
+            "",                          # excluded_words (not in original schema)
+            "",                          # resellers (not in original schema)
+            mode_only_preferred,         # mode_only_preferred
+            non_good_deals,              # non_good_deals
+            good_deals,                  # good_deals
+            near_good_deals              # near_good_deals
+        ]
         
         writer.writerow(row)
     
@@ -195,6 +231,114 @@ def export_data():
     return send_file(
         bytes_output,
         as_attachment=True,
-        download_name=f'iphone_flippers_data_{timestamp}.csv',
+        download_name=f'user_data_export_{timestamp}.csv',
         mimetype='text/csv'
     )
+
+@admin_bp.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file part', 'danger')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No selected file', 'danger')
+            return redirect(request.url)
+        
+        if file and file.filename.endswith('.csv'):
+            # Process the CSV file
+            stream = io.StringIO(file.stream.read().decode("UTF-8-sig"))
+            csv_reader = csv.DictReader(stream)
+            
+            # Counters for statistics
+            added = 0
+            updated = 0
+            errors = 0
+            
+            try:
+                for row in csv_reader:
+                    try:
+                        # Find or create a new preference entry based on unique_userid
+                        unique_userid = row['unique_userid']
+                        
+                        # Extract location from the CSV
+                        location = row['location']
+                        
+                        # Create notification mode from mode flags
+                        if int(row.get('good_deals', 0)) == 1:
+                            notification_mode = 'good_deal'
+                        elif int(row.get('near_good_deals', 0)) == 1:
+                            notification_mode = 'near_good_deal'
+                        elif int(row.get('mode_only_preferred', 0)) == 1:
+                            notification_mode = 'only_preferred'
+                        else:
+                            notification_mode = 'all'
+                        
+                        # Look up by unique_userid in the format "user_X"
+                        if unique_userid.startswith('user_'):
+                            try:
+                                pref_id = int(unique_userid.split('_')[1])
+                                preference = Preference.query.get(pref_id)
+                            except:
+                                preference = None
+                        else:
+                            preference = None
+                            
+                        if preference:
+                            # Update existing preference
+                            preference.location = location
+                            preference.suburb = row.get('suburb', '')  # Assuming suburb might be in the CSV
+                            preference.notification_mode = notification_mode
+                            updated += 1
+                        else:
+                            # Create new preference
+                            preference = Preference(
+                                location=location,
+                                suburb=row.get('suburb', ''),
+                                notification_mode=notification_mode
+                            )
+                            db.session.add(preference)
+                            db.session.flush()  # Get ID without committing
+                            added += 1
+                        
+                        # Process products
+                        # First, delete existing products
+                        for product in preference.products:
+                            db.session.delete(product)
+                        
+                        # Add new products from CSV
+                        if 'products' in row and row['products']:
+                            for product_data in row['products'].split(';'):
+                                if product_data:
+                                    parts = product_data.split(':')
+                                    if len(parts) >= 4:
+                                        name, min_price, max_price, preferred = parts
+                                        product_pref = ProductPreference(
+                                            preference_id=preference.id,
+                                            product_name=name,
+                                            max_price=int(float(max_price)),
+                                            is_preferred=(int(preferred) == 1)
+                                        )
+                                        db.session.add(product_pref)
+                        
+                        db.session.commit()
+                        
+                    except Exception as e:
+                        db.session.rollback()
+                        errors += 1
+                        print(f"Error processing row: {e}")
+                
+                flash(f'Import completed. Added: {added}, Updated: {updated}, Errors: {errors}', 'success')
+            except Exception as e:
+                flash(f'Error processing CSV: {str(e)}', 'danger')
+            
+            return redirect(url_for('admin.dashboard'))
+        else:
+            flash('Please upload a CSV file', 'danger')
+            return redirect(request.url)
+    
+    # GET request - show upload form
+    return render_template('admin/import.html')

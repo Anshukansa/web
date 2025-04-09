@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Import User Data - iPhone Flippers Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Import User Data</h2>
+    <div>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Upload CSV File</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="file" class="form-label">Select CSV file to import</label>
+                <input class="form-control" type="file" id="file" name="file" accept=".csv">
+                <div class="form-text">
+                    The CSV should match the export format. All users in the file will be added or updated.
+                </div>
+            </div>
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Warning:</strong> Importing a CSV will update existing users if they match by unique_userid. 
+                Make sure your CSV data is correct before importing.
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-upload me-2"></i>Import Data
+            </button>
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-times me-2"></i>Cancel
+            </a>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">CSV Format Instructions</h5>
+    </div>
+    <div class="card-body">
+        <p>The CSV file should have the following columns:</p>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Column Name</th>
+                        <th>Description</th>
+                        <th>Format</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>unique_userid</strong></td>
+                        <td>Unique identifier for each user</td>
+                        <td>Text</td>
+                        <td>user_123</td>
+                    </tr>
+                    <tr>
+                        <td><strong>user_id</strong></td>
+                        <td>User's ID</td>
+                        <td>Text</td>
+                        <td>john_doe</td>
+                    </tr>
+                    <tr>
+                        <td><strong>user_name</strong></td>
+                        <td>User's name</td>
+                        <td>Text</td>
+                        <td>John Doe</td>
+                    </tr>
+                    <tr>
+                        <td><strong>location</strong></td>
+                        <td>User's location</td>
+                        <td>Text</td>
+                        <td>Los Angeles</td>
+                    </tr>
+                    <tr>
+                        <td><strong>activation_status</strong></td>
+                        <td>Activation status</td>
+                        <td>1 (active) or 0 (inactive)</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td><strong>expiry_date</strong></td>
+                        <td>User's subscription expiry date</td>
+                        <td>YYYY-MM-DD</td>
+                        <td>2025-12-31</td>
+                    </tr>
+                    <tr>
+                        <td><strong>fixed_lat</strong></td>
+                        <td>Latitude coordinate</td>
+                        <td>Decimal number</td>
+                        <td>34.0522</td>
+                    </tr>
+                    <tr>
+                        <td><strong>fixed_lon</strong></td>
+                        <td>Longitude coordinate</td>
+                        <td>Decimal number</td>
+                        <td>-118.2437</td>
+                    </tr>
+                    <tr>
+                        <td><strong>password</strong></td>
+                        <td>User's password</td>
+                        <td>Text</td>
+                        <td>password123</td>
+                    </tr>
+                    <tr>
+                        <td><strong>products</strong></td>
+                        <td>Product preferences</td>
+                        <td>name:min_price:max_price:preferred; (semicolon-separated)</td>
+                        <td>iPhone 15 Pro:0:800:1;iPhone 14:0:500:0;</td>
+                    </tr>
+                    <tr>
+                        <td><strong>keywords</strong></td>
+                        <td>Search keywords</td>
+                        <td>Semicolon-separated list</td>
+                        <td>mint;unlocked;new;</td>
+                    </tr>
+                    <tr>
+                        <td><strong>excluded_words</strong></td>
+                        <td>Words to exclude from search</td>
+                        <td>Semicolon-separated list</td>
+                        <td>broken;cracked;damaged;</td>
+                    </tr>
+                    <tr>
+                        <td><strong>resellers</strong></td>
+                        <td>Preferred resellers</td>
+                        <td>Semicolon-separated list</td>
+                        <td>Apple;Best Buy;Walmart;</td>
+                    </tr>
+                    <tr>
+                        <td><strong>mode_only_preferred</strong></td>
+                        <td>Only send preferred models</td>
+                        <td>1 (enabled) or 0 (disabled)</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td><strong>non_good_deals</strong></td>
+                        <td>Send all listings</td>
+                        <td>1 (enabled) or 0 (disabled)</td>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>good_deals</strong></td>
+                        <td>Only send good deals (below max price)</td>
+                        <td>1 (enabled) or 0 (disabled)</td>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>near_good_deals</strong></td>
+                        <td>Send deals near max price</td>
+                        <td>1 (enabled) or 0 (disabled)</td>
+                        <td>1</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Note:</strong> You can download a template by exporting your current data and modifying it.
+        </div>
+    </div>
+</div>
+{% endblock %}
