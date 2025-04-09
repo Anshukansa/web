@@ -1,7 +1,11 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, jsonify, g
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, jsonify, g, session
 from models import db, Preference, ProductPreference, IPHONE_MODELS, DEFAULT_PRICES
 from forms import PreferenceForm
 from telegram_auth import verify_telegram_auth
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 main_bp = Blueprint('main', __name__)
 
@@ -24,12 +28,16 @@ def telegram_form():
     user_id = g.telegram_user_id
     user_name = g.telegram_user_name
     
+    # Store Telegram info in session for maintaining state during submission
+    session['telegram_user_id'] = user_id
+    session['telegram_user_name'] = user_name
+    
     # Check if user already has a preference record
     preference = Preference.query.filter_by(user_id=user_id).first()
     
     # If user exists, redirect to edit their data
     if preference:
-        return redirect(url_for('main.edit_telegram_preference', user_id=user_id))
+        return redirect(url_for('main.edit_telegram_preference'))
     
     # Otherwise, show the new form
     form = PreferenceForm()
@@ -66,8 +74,9 @@ def telegram_form():
                 db.session.add(product_pref)
         
         db.session.commit()
+        logger.info(f"Created new preference for Telegram user ID {user_id}")
         
-        # Redirect to thank you page
+        # Redirect to thank you page with session-based auth
         return redirect(url_for('main.telegram_thank_you'))
     
     # Pre-fill the form with default values
@@ -77,13 +86,17 @@ def telegram_form():
                           default_prices=DEFAULT_PRICES,
                           telegram_user_name=user_name)
 
-@main_bp.route('/edit-telegram/<user_id>', methods=['GET', 'POST'])
+@main_bp.route('/edit-telegram', methods=['GET', 'POST'])
 @verify_telegram_auth
-def edit_telegram_preference(user_id):
+def edit_telegram_preference():
     """Edit preference for Telegram users"""
-    # Security check - user can only edit their own data
-    if g.telegram_user_id != user_id:
-        return redirect(url_for('main.access_denied', reason='unauthorized'))
+    # Get Telegram user info from the auth decorator
+    user_id = g.telegram_user_id
+    user_name = g.telegram_user_name
+    
+    # Store Telegram info in session for maintaining state
+    session['telegram_user_id'] = user_id
+    session['telegram_user_name'] = user_name
     
     # Get the preference by Telegram user_id
     preference = Preference.query.filter_by(user_id=user_id).first_or_404()
@@ -118,6 +131,7 @@ def edit_telegram_preference(user_id):
                 db.session.add(product_pref)
         
         db.session.commit()
+        logger.info(f"Updated preference for Telegram user ID {user_id}")
         flash('Your preferences have been updated successfully!', 'success')
         return redirect(url_for('main.telegram_thank_you'))
     
@@ -143,12 +157,15 @@ def edit_telegram_preference(user_id):
                           telegram_user_name=g.telegram_user_name)
 
 @main_bp.route('/telegram-thank-you')
-@verify_telegram_auth
 def telegram_thank_you():
     """Thank you page for Telegram users"""
-    # Get Telegram user info
-    user_id = g.telegram_user_id
-    user_name = g.telegram_user_name
+    # Get Telegram user info from session
+    user_id = session.get('telegram_user_id')
+    user_name = session.get('telegram_user_name')
+    
+    if not user_id:
+        # If no session, redirect to access denied
+        return redirect(url_for('main.access_denied'))
     
     # Get the preference to display a summary
     preference = Preference.query.filter_by(user_id=user_id).first_or_404()
