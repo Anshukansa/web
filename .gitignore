@@ -1,0 +1,9 @@
+echo "*.pyc
+__pycache__/
+instance/
+.webassets-cache
+.env
+.flaskenv
+*.db
+venv/
+.DS_Store" > .gitignore
