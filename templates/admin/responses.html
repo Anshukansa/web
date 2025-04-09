@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}All Responses - iPhone Flippers Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>All Form Responses</h2>
+    <div>
+        <a href="{{ url_for('admin.export_data') }}" class="btn btn-success">
+            <i class="fas fa-file-export me-2"></i>Export to CSV
+        </a>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary ms-2">
+            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0">Filter Responses</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('admin.responses') }}" class="row g-3">
+            <div class="col-md-4">
+                <label for="{{ filter_form.location.id }}" class="form-label">{{ filter_form.location.label.text }}</label>
+                {{ filter_form.location(class_="form-control") }}
+            </div>
+            <div class="col-md-4">
+                <label for="{{ filter_form.notification_mode.id }}" class="form-label">{{ filter_form.notification_mode.label.text }}</label>
+                {{ filter_form.notification_mode(class_="form-select") }}
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="fas fa-filter me-2"></i>Apply Filters
+                </button>
+                <a href="{{ url_for('admin.responses') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-undo me-2"></i>Reset
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if pagination.items %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Location</th>
+                            <th>Suburb</th>
+                            <th>Notification Mode</th>
+                            <th>Submitted On</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for preference in pagination.items %}
+                            <tr>
+                                <td>{{ preference.id }}</td>
+                                <td>{{ preference.location }}</td>
+                                <td>{{ preference.suburb or '-' }}</td>
+                                <td>
+                                    {% if preference.notification_mode == 'all' %}
+                                        <span class="badge bg-1">All</span>
+                                    {% elif preference.notification_mode == 'only_preferred' %}
+                                        <span class="badge bg-2">Only Preferred</span>
+                                    {% elif preference.notification_mode == 'near_good_deal' %}
+                                        <span class="badge bg-3">Near Good Deal</span>
+                                    {% else %}
+                                        <span class="badge bg-4">Good Deal</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ preference.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{{ url_for('admin.view_response', id=preference.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('main.edit_preference', token=preference.edit_token) }}" class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#deleteModal{{ preference.id }}">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Delete Modal -->
+                                    <div class="modal fade" id="deleteModal{{ preference.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Confirm Deletion</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p>Are you sure you want to delete the response from <strong>{{ preference.location }}</strong>?</p>
+                                                    <p class="text-danger">This action cannot be undone.</p>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <form action="{{ url_for('admin.delete_response', id=preference.id) }}" method="POST">
+                                                        <button type="submit" class="btn btn-danger">Delete</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if pagination.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.responses', page=pagination.prev_num, location=request.args.get('location', ''), notification_mode=request.args.get('notification_mode', '')) }}">
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link"><i class="fas fa-chevron-left"></i> Previous</span>
+                        </li>
+                    {% endif %}
+                    
+                    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                            {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.responses', page=page_num, location=request.args.get('location', ''), notification_mode=request.args.get('notification_mode', '')) }}">{{ page_num }}</a>
+                                </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">…</span>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.responses', page=pagination.next_num, location=request.args.get('location', ''), notification_mode=request.args.get('notification_mode', '')) }}">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">Next <i class="fas fa-chevron-right"></i></span>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-lg me-2"></i> No responses found.
+                {% if request.args.get('location') or request.args.get('notification_mode') %}
+                    <a href="{{ url_for('admin.responses') }}" class="alert-link">Clear filters</a> to see all responses.
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

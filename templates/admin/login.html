@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Login - iPhone Flippers{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white">
+                <h3 class="card-title mb-0">Admin Login</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="">
+                    {{ form.csrf_token }}
+                    
+                    <div class="form-group mb-3">
+                        <label for="{{ form.username.id }}" class="form-label">{{ form.username.label.text }}</label>
+                        {{ form.username(class_="form-control", placeholder="Enter username") }}
+                        {% if form.username.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.username.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group mb-4">
+                        <label for="{{ form.password.id }}" class="form-label">{{ form.password.label.text }}</label>
+                        {{ form.password(class_="form-control", placeholder="Enter password") }}
+                        {% if form.password.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.password.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt me-2"></i>{{ form.submit.label.text }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

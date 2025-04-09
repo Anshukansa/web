@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}View Response - iPhone Flippers Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Response Details</h2>
+    <div>
+        <a href="{{ url_for('admin.responses') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to All Responses
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Basic Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="fw-bold">ID:</label>
+                    <div>{{ preference.id }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="fw-bold">Location:</label>
+                    <div>{{ preference.location }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="fw-bold">Suburb:</label>
+                    <div>{{ preference.suburb or 'Not specified' }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="fw-bold">Notification Mode:</label>
+                    <div>
+                        {% if preference.notification_mode == 'all' %}
+                            <span class="badge bg-1">All Listings</span>
+                        {% elif preference.notification_mode == 'only_preferred' %}
+                            <span class="badge bg-2">Only Preferred</span>
+                        {% elif preference.notification_mode == 'near_good_deal' %}
+                            <span class="badge bg-3">Near Good Deal</span>
+                        {% else %}
+                            <span class="badge bg-4">Good Deal</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="fw-bold">Submitted On:</label>
+                    <div>{{ preference.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                </div>
+                {% if preference.created_at != preference.updated_at %}
+                <div class="mb-3">
+                    <label class="fw-bold">Last Updated:</label>
+                    <div>{{ preference.updated_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('main.edit_preference', token=preference.edit_token) }}" class="btn btn-warning">
+                        <i class="fas fa-edit me-2"></i>Edit Response
+                    </a>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="fas fa-trash-alt me-2"></i>Delete Response
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">User Edit Link</h5>
+            </div>
+            <div class="card-body">
+                <p>Share this link with the user to allow them to edit their preferences:</p>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="editUrl" value="{{ edit_url }}" readonly>
+                    <button class="btn btn-outline-primary" type="button" id="copyButton">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                </div>
+                <div class="alert alert-warning small mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    This link provides direct access to edit this response without login. Keep it secure.
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Product Preferences</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>iPhone Model</th>
+                                <th>Max Price ($)</th>
+                                <th>Preferred</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in preference.products %}
+                                <tr {% if product.is_preferred %}class="table-success"{% endif %}>
+                                    <td>{{ product.product_name }}</td>
+                                    <td>${{ product.max_price }}</td>
+                                    <td>
+                                        {% if product.is_preferred %}
+                                            <span class="badge bg-success"><i class="fas fa-check me-1"></i>Yes</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary"><i class="fas fa-times me-1"></i>No</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-4">
+                    <h6 class="text-success mb-3">Preferred Models Summary</h6>
+                    <div class="row">
+                        {% set preferred_products = preference.products|selectattr('is_preferred', 'equalto', true)|list %}
+                        {% if preferred_products %}
+                            {% for product in preferred_products %}
+                                <div class="col-md-6 mb-2">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-check-circle text-success me-2"></i>
+                                        <span>{{ product.product_name }} (Max: ${{ product.max_price }})</span>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="col-12">
+                                <div class="alert alert-info mb-0">
+                                    No preferred models selected.
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this response from <strong>{{ preference.location }}</strong>?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('admin.delete_response', id=preference.id) }}" method="POST">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Copy edit URL functionality
+        $('#copyButton').click(function() {
+            var editUrlInput = document.getElementById('editUrl');
+            editUrlInput.select();
+            document.execCommand('copy');
+            
+            // Change button text temporarily
+            var $btn = $(this);
+            var originalHtml = $btn.html();
+            $btn.html('<i class="fas fa-check"></i> Copied!');
+            $btn.addClass('btn-success').removeClass('btn-outline-primary');
+            
+            setTimeout(function() {
+                $btn.html(originalHtml);
+                $btn.addClass('btn-outline-primary').removeClass('btn-success');
+            }, 2000);
+        });
+    });
+</script>
+{% endblock %}

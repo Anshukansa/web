@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Thank You - iPhone Flippers{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white">
+                <h2 class="card-title mb-0">Thank You!</h2>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <i class="fas fa-check-circle text-success fa-5x mb-3"></i>
+                    <h3>Your preferences have been submitted successfully.</h3>
+                    <p class="lead">We'll notify you based on your selected preferences.</p>
+                </div>
+                
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-link me-2"></i>Your Edit Link</h5>
+                    <p>If you need to update your preferences in the future, please use this link:</p>
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="editUrl" value="{{ edit_url }}" readonly>
+                        <button class="btn btn-outline-primary" type="button" id="copyButton">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <p class="text-muted small">Keep this link safe. Anyone with this link can edit your preferences.</p>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Your Preference Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Location:</strong> {{ preference.location }}</p>
+                                {% if preference.suburb %}
+                                    <p><strong>Suburb:</strong> {{ preference.suburb }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Notification Mode:</strong> 
+                                    {% if preference.notification_mode == 'all' %}
+                                        All Listings
+                                    {% elif preference.notification_mode == 'only_preferred' %}
+                                        Only Preferred
+                                    {% elif preference.notification_mode == 'near_good_deal' %}
+                                        Near Good Deal
+                                    {% else %}
+                                        Good Deal
+                                    {% endif %}
+                                </p>
+                                <p><strong>Date Submitted:</strong> {{ preference.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <h6 class="text-primary">Preferred iPhone Models</h6>
+                        <div class="row">
+                            {% for product in preference.products %}
+                                {% if product.is_preferred %}
+                                    <div class="col-md-4 mb-2">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            <span>{{ product.product_name }} (Max: ${{ product.max_price }})</span>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                        <i class="fas fa-home me-2"></i>Return to Home
+                    </a>
+                    <a href="{{ url_for('main.edit_preference', token=preference.edit_token) }}" class="btn btn-outline-secondary ms-2">
+                        <i class="fas fa-edit me-2"></i>Edit Preferences
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Copy edit URL functionality
+        $('#copyButton').click(function() {
+            var editUrlInput = document.getElementById('editUrl');
+            editUrlInput.select();
+            document.execCommand('copy');
+            
+            // Change button text temporarily
+            var $btn = $(this);
+            var originalHtml = $btn.html();
+            $btn.html('<i class="fas fa-check"></i> Copied!');
+            $btn.addClass('btn-success').removeClass('btn-outline-primary');
+            
+            setTimeout(function() {
+                $btn.html(originalHtml);
+                $btn.addClass('btn-outline-primary').removeClass('btn-success');
+            }, 2000);
+        });
+    });
+</script>
+{% endblock %}

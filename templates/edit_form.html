@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Preferences - iPhone Flippers{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-dark">
+                <h2 class="card-title mb-0">Edit Your Preferences</h2>
+            </div>
+            <div class="card-body">
+                <p class="lead mb-4">You can update your preferences using this form.</p>
+                
+                <form method="POST" action="" id="preferencesForm">
+                    {{ form.csrf_token }}
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="{{ form.location.id }}" class="form-label fw-bold">{{ form.location.label.text }}</label>
+                                {{ form.location(class_="form-control", placeholder="Enter your city") }}
+                                {% if form.location.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.location.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="{{ form.suburb.id }}" class="form-label fw-bold">{{ form.suburb.label.text }}</label>
+                                {{ form.suburb(class_="form-control", placeholder="Enter your suburb (optional)") }}
+                                {% if form.suburb.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.suburb.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h4 class="text-primary">Notification Mode</h4>
+                        <p class="text-muted">Choose how you want to receive notifications</p>
+                        
+                        <div class="form-group mb-3">
+                            {% for subfield in form.notification_mode %}
+                                <div class="form-check mb-2">
+                                    {{ subfield(class_="form-check-input") }}
+                                    <label class="form-check-label" for="{{ subfield.id }}">
+                                        {{ subfield.label.text }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                            {% if form.notification_mode.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.notification_mode.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h4 class="text-primary">Product Preferences</h4>
+                        <p class="text-muted">Set your preferred maximum prices and select which models you're interested in</p>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Products</th>
+                                        <th>Max Price ($)</th>
+                                        <th>Preferred</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for model in iphone_models %}
+                                        <tr>
+                                            <td>{{ model }}</td>
+                                            <td>
+                                                <input type="number" 
+                                                       name="max_price_{{ model|replace(' ', '_') }}" 
+                                                       class="form-control" 
+                                                       value="{{ product_prefs.get(model, {}).get('max_price', default_prices[model]) }}" 
+                                                       min="0" 
+                                                       max="2000">
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="form-check form-switch d-flex justify-content-center">
+                                                    <input class="form-check-input" 
+                                                           type="checkbox" 
+                                                           name="is_preferred_{{ model|replace(' ', '_') }}" 
+                                                           {% if product_prefs.get(model, {}).get('is_preferred', True) %}checked{% endif %}>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="fas fa-save me-2"></i>Update Preferences
+                        </button>
+                        <a href="{{ url_for('main.thank_you', token=preference.edit_token) }}" class="btn btn-outline-secondary btn-lg ms-2">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Enhance the form UI with dynamic features
+        $(".form-check-input[type='checkbox']").change(function() {
+            // Highlight the row when a model is preferred
+            if ($(this).is(":checked")) {
+                $(this).closest("tr").addClass("table-success");
+            } else {
+                $(this).closest("tr").removeClass("table-success");
+            }
+        });
+        
+        // Initially highlight all rows that are checked
+        $(".form-check-input[type='checkbox']:checked").closest("tr").addClass("table-success");
+    });
+</script>
+{% endblock %}

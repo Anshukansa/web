@@ -1,0 +1,15 @@
+Flask==2.3.3
+flask-login==0.6.2
+flask-migrate==4.0.5
+flask-sqlalchemy==3.1.1
+flask-wtf==1.2.1
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+email-validator==2.1.0
+WTForms==3.1.1
+Werkzeug==2.3.7
+alembic==1.12.1
+itsdangerous==2.1.2
+Jinja2==3.1.2
+SQLAlchemy==2.0.23
+python-dotenv==1.0.0

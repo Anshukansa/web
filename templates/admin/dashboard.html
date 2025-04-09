@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - iPhone Flippers{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-white-50">Total Submissions</h6>
+                        <h2 class="display-4 mb-0">{{ total_submissions }}</h2>
+                    </div>
+                    <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
+                </div>
+            </div>
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <a href="{{ url_for('admin.responses') }}" class="text-white text-decoration-none">View all responses</a>
+                <i class="fas fa-arrow-right text-white"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Notification Mode Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for mode, count in mode_data.items() %}
+                        <div class="col-md-3">
+                            <div class="text-center mb-3">
+                                <h2 class="display-5">{{ count }}</h2>
+                                <p class="text-muted mb-0">{{ mode_labels[mode] }}</p>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="progress mt-3">
+                    {% for mode, count in mode_data.items() %}
+                        {% if total_submissions > 0 %}
+                            {% set percentage = (count / total_submissions) * 100 %}
+                        {% else %}
+                            {% set percentage = 0 %}
+                        {% endif %}
+                        
+                        <div class="progress-bar bg-{{ loop.index }}" role="progressbar" 
+                             style="width: {{ percentage }}%" 
+                             aria-valuenow="{{ percentage }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100"
+                             title="{{ mode_labels[mode] }}">
+                            {% if percentage > 5 %}{{ percentage|round|int }}%{% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Most Popular iPhone Models</h5>
+                <span class="badge bg-primary">Preferred</span>
+            </div>
+            <div class="card-body">
+                {% if popular_models %}
+                    <ul class="list-group list-group-flush">
+                        {% for model, count in popular_models %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ model }}
+                                <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted text-center py-3">No data available yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Submissions</h5>
+                <a href="{{ url_for('admin.responses') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_submissions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Location</th>
+                                    <th>Mode</th>
+                                    <th>Date</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in recent_submissions %}
+                                    <tr>
+                                        <td>{{ submission.location }}</td>
+                                        <td>
+                                            {% if submission.notification_mode == 'all' %}
+                                                <span class="badge bg-1">All</span>
+                                            {% elif submission.notification_mode == 'only_preferred' %}
+                                                <span class="badge bg-2">Only Preferred</span>
+                                            {% elif submission.notification_mode == 'near_good_deal' %}
+                                                <span class="badge bg-3">Near Good Deal</span>
+                                            {% else %}
+                                                <span class="badge bg-4">Good Deal</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ submission.created_at.strftime('%Y-%m-%d') }}</td>
+                                        <td>
+                                            <a href="{{ url_for('admin.view_response', id=submission.id) }}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-3">No submissions yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Quick Actions</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4 text-center mb-3">
+                <a href="{{ url_for('admin.responses') }}" class="text-decoration-none">
+                    <div class="p-3 border rounded hover-shadow">
+                        <i class="fas fa-list-alt fa-2x text-primary mb-3"></i>
+                        <h5>View All Responses</h5>
+                        <p class="text-muted">Browse and filter all form submissions</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4 text-center mb-3">
+                <a href="{{ url_for('admin.export_data') }}" class="text-decoration-none">
+                    <div class="p-3 border rounded hover-shadow">
+                        <i class="fas fa-file-export fa-2x text-success mb-3"></i>
+                        <h5>Export Data</h5>
+                        <p class="text-muted">Download all data as CSV file</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4 text-center mb-3">
+                <a href="{{ url_for('main.index') }}" class="text-decoration-none">
+                    <div class="p-3 border rounded hover-shadow">
+                        <i class="fas fa-eye fa-2x text-info mb-3"></i>
+                        <h5>View Form</h5>
+                        <p class="text-muted">See the form as users see it</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Add any dashboard-specific JS here
+    $(document).ready(function() {
+        // Add hover effect on quick action boxes
+        $('.hover-shadow').hover(
+            function() {
+                $(this).addClass('shadow-sm');
+                $(this).css('transform', 'translateY(-3px)');
+                $(this).css('transition', 'all 0.3s ease');
+            },
+            function() {
+                $(this).removeClass('shadow-sm');
+                $(this).css('transform', 'translateY(0)');
+            }
+        );
+    });
+</script>
+{% endblock %}
