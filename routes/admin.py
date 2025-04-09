@@ -4,6 +4,7 @@ from werkzeug.urls import url_parse
 import io
 import csv
 from datetime import datetime
+import xlsxwriter
 
 from models import db, User, Preference, ProductPreference, IPHONE_MODELS
 from forms import LoginForm, FilterForm
@@ -140,53 +141,104 @@ def delete_response(id):
 @admin_bp.route('/export')
 @login_required
 def export_data():
-    # Create CSV in memory
-    output = io.StringIO()
-    writer = csv.writer(output)
+    # Create an in-memory bytes buffer for Excel
+    output = io.BytesIO()
     
-    # First row: Main header with application name and export date
-    writer.writerow([f"iPhone Flippers Data Export - Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+    # Create Excel workbook and add worksheets
+    workbook = xlsxwriter.Workbook(output)
     
-    # Second row: Section headers to group columns
-    writer.writerow(["--- USER INFORMATION ---", "", "", "", "", "", "", "", "--- PRODUCT & PREFERENCE DATA ---", "", "", "", "--- NOTIFICATION MODES ---", "", "", "", ""])
+    # Add formatting
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#4472C4',
+        'font_color': 'white',
+        'border': 1,
+        'align': 'center',
+        'valign': 'vcenter'
+    })
     
-    # Third row: Detailed header descriptions
-    descriptions = [
-        "Unique User ID (Required)",
-        "User ID (Optional)",
-        "User Name (Optional)",
-        "Location (Required)",
-        "Active? (1=Yes, 0=No)",
-        "Expiry Date (YYYY-MM-DD)",
-        "Latitude (Optional)",
-        "Longitude (Optional)",
-        "Password (Optional)",
-        "Products (Format below)",
-        "Keywords (Leave empty)",
-        "Excluded Words (Leave empty)",
-        "Resellers (Leave empty)",
-        "Only Preferred (1=Yes, 0=No)",
-        "All Listings (1=Yes, 0=No)",
-        "Good Deals (1=Yes, 0=No)",
-        "Near Good Deals (1=Yes, 0=No)"
+    subheader_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#D9E1F2',
+        'border': 1,
+        'align': 'center',
+        'valign': 'vcenter'
+    })
+    
+    title_format = workbook.add_format({
+        'bold': True,
+        'font_size': 14,
+        'align': 'center',
+        'valign': 'vcenter'
+    })
+    
+    instructions_format = workbook.add_format({
+        'font_color': '#525252',
+        'text_wrap': True,
+        'valign': 'vcenter'
+    })
+    
+    data_format = workbook.add_format({
+        'border': 1,
+        'align': 'left',
+        'valign': 'vcenter'
+    })
+    
+    # Create Users worksheet
+    users_sheet = workbook.add_worksheet('Users')
+    
+    # Set column widths
+    users_sheet.set_column('A:A', 18)  # unique_userid
+    users_sheet.set_column('B:B', 15)  # user_id
+    users_sheet.set_column('C:C', 20)  # user_name
+    users_sheet.set_column('D:D', 20)  # location
+    users_sheet.set_column('E:E', 8)   # activation_status
+    users_sheet.set_column('F:F', 15)  # expiry_date
+    users_sheet.set_column('G:G', 12)  # fixed_lat
+    users_sheet.set_column('H:H', 12)  # fixed_lon
+    users_sheet.set_column('I:I', 15)  # password
+    users_sheet.set_column('J:J', 8)   # mode_only_preferred
+    users_sheet.set_column('K:K', 8)   # non_good_deals
+    users_sheet.set_column('L:L', 8)   # good_deals
+    users_sheet.set_column('M:M', 8)   # near_good_deals
+    
+    # Title row
+    users_sheet.merge_range('A1:M1', f'iPhone Flippers - User Data Export - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', title_format)
+    
+    # Instructions row
+    users_sheet.merge_range('A2:M2', 'Instructions: Edit user data in this sheet. For products, use the Products sheet.', instructions_format)
+    
+    # Header sections
+    users_sheet.merge_range('A3:I3', 'USER INFORMATION', subheader_format)
+    users_sheet.merge_range('J3:M3', 'NOTIFICATION MODES', subheader_format)
+    
+    # User headers row
+    users_headers = [
+        'unique_userid',
+        'user_id',
+        'user_name',
+        'location',
+        'activation_status',
+        'expiry_date',
+        'fixed_lat',
+        'fixed_lon',
+        'password',
+        'mode_only_preferred',
+        'non_good_deals',
+        'good_deals',
+        'near_good_deals'
     ]
-    writer.writerow(descriptions)
     
-    # Fourth row: Column names (actual data headers)
-    header = [
-        'unique_userid', 'user_id', 'user_name', 'location', 'activation_status', 
-        'expiry_date', 'fixed_lat', 'fixed_lon', 'password',
-        'products', 'keywords', 'excluded_words', 'resellers',
-        'mode_only_preferred', 'non_good_deals', 'good_deals', 'near_good_deals'
-    ]
-    writer.writerow(header)
+    for col, header in enumerate(users_headers):
+        users_sheet.write(3, col, header, header_format)
     
     # Query all preferences
     preferences = Preference.query.all()
     
-    # Write data rows
+    # Write user data rows
+    row = 4
     for pref in preferences:
-        # Generate a unique ID for this user (using original ID with a prefix)
+        # Generate a unique ID for this user
         unique_userid = f"user_{pref.id}"
         
         # Set default mode values based on notification_mode
@@ -195,65 +247,206 @@ def export_data():
         good_deals = 1 if pref.notification_mode == 'good_deal' else 0
         near_good_deals = 1 if pref.notification_mode == 'near_good_deal' else 0
         
-        # Extract products with better human-readable formatting
-        products_list = []
-        for product in pref.products:
-            # Format: [Product=iPhone 16 Pro Max|MaxPrice=900|Preferred=Yes]
-            is_preferred = "Yes" if product.is_preferred else "No"
-            products_list.append(f"[Product={product.product_name}|MaxPrice={product.max_price}|Preferred={is_preferred}]")
-        
-        products_str = "".join(products_list)
-        
         # Create row with available data and empty fields for the rest
-        row = [
-            unique_userid,               # unique_userid
-            "",                          # user_id (not in original schema)
-            "",                          # user_name (not in original schema)
-            pref.location,               # location
-            1,                           # activation_status (default to active)
-            "",                          # expiry_date (not in original schema)
-            "",                          # fixed_lat (not in original schema)
-            "",                          # fixed_lon (not in original schema)
-            "",                          # password (not in original schema)
-            products_str,                # products (human-readable format)
-            "",                          # keywords (left empty as requested)
-            "",                          # excluded_words (left empty as requested)
-            "",                          # resellers (left empty as requested)
-            mode_only_preferred,         # mode_only_preferred
-            non_good_deals,              # non_good_deals
-            good_deals,                  # good_deals
-            near_good_deals              # near_good_deals
-        ]
+        users_sheet.write(row, 0, unique_userid, data_format)        # unique_userid
+        users_sheet.write(row, 1, "", data_format)                   # user_id
+        users_sheet.write(row, 2, "", data_format)                   # user_name
+        users_sheet.write(row, 3, pref.location, data_format)        # location
+        users_sheet.write(row, 4, 1, data_format)                    # activation_status
+        users_sheet.write(row, 5, "", data_format)                   # expiry_date
+        users_sheet.write(row, 6, "", data_format)                   # fixed_lat
+        users_sheet.write(row, 7, "", data_format)                   # fixed_lon
+        users_sheet.write(row, 8, "", data_format)                   # password
+        users_sheet.write(row, 9, mode_only_preferred, data_format)  # mode_only_preferred
+        users_sheet.write(row, 10, non_good_deals, data_format)      # non_good_deals
+        users_sheet.write(row, 11, good_deals, data_format)          # good_deals
+        users_sheet.write(row, 12, near_good_deals, data_format)     # near_good_deals
         
-        writer.writerow(row)
+        row += 1
     
-    # Add a footer with instructions
-    writer.writerow([])
-    writer.writerow(["--- INSTRUCTIONS ---", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["1. Do not modify the column headers (row 4)", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["2. Each row represents one user", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["3. Product format explanation:", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["   [Product=iPhone 16 Pro Max|MaxPrice=900|Preferred=Yes]", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["   You can add multiple products by connecting them: [Product=iPhone 16|MaxPrice=650|Preferred=Yes][Product=iPhone 15|MaxPrice=500|Preferred=No]", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["4. For modes, only ONE should be set to 1, the rest should be 0", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-    writer.writerow(["5. When importing, the unique_userid is used to match existing users", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+    # Create Products worksheet
+    products_sheet = workbook.add_worksheet('Products')
     
-    # Prepare the output for download
+    # Set column widths
+    products_sheet.set_column('A:A', 18)  # unique_userid
+    products_sheet.set_column('B:B', 25)  # name
+    products_sheet.set_column('C:C', 12)  # min_price
+    products_sheet.set_column('D:D', 12)  # max_price
+    products_sheet.set_column('E:E', 12)  # preferred
+    
+    # Title row
+    products_sheet.merge_range('A1:E1', 'Product Preferences', title_format)
+    
+    # Instructions row
+    products_sheet.merge_range('A2:E2', 'Match unique_userid with the Users sheet. Set preferred to 1 for yes, 0 for no.', instructions_format)
+    
+    # Product headers row
+    product_headers = [
+        'unique_userid',
+        'name',
+        'min_price',
+        'max_price',
+        'preferred'
+    ]
+    
+    for col, header in enumerate(product_headers):
+        products_sheet.write(3, col, header, header_format)
+    
+    # Write product data rows
+    row = 4
+    for pref in preferences:
+        unique_userid = f"user_{pref.id}"
+        
+        for product in pref.products:
+            products_sheet.write(row, 0, unique_userid, data_format)             # unique_userid
+            products_sheet.write(row, 1, product.product_name, data_format)      # name
+            products_sheet.write(row, 2, 100, data_format)                       # min_price (set to 100 as requested)
+            products_sheet.write(row, 3, product.max_price, data_format)         # max_price
+            products_sheet.write(row, 4, 1 if product.is_preferred else 0, data_format)  # preferred
+            
+            row += 1
+    
+    # Create a Keywords worksheet (empty template)
+    keywords_sheet = workbook.add_worksheet('Keywords')
+    
+    # Set column widths
+    keywords_sheet.set_column('A:A', 18)  # unique_userid
+    keywords_sheet.set_column('B:B', 30)  # keyword
+    
+    # Title row
+    keywords_sheet.merge_range('A1:B1', 'Keywords', title_format)
+    
+    # Instructions row
+    keywords_sheet.merge_range('A2:B2', 'Add search keywords. Match unique_userid with the Users sheet.', instructions_format)
+    
+    # Keywords headers
+    keywords_headers = [
+        'unique_userid',
+        'keyword'
+    ]
+    
+    for col, header in enumerate(keywords_headers):
+        keywords_sheet.write(3, col, header, header_format)
+    
+    # Create an Excluded Words worksheet (empty template)
+    excluded_sheet = workbook.add_worksheet('Excluded Words')
+    
+    # Set column widths
+    excluded_sheet.set_column('A:A', 18)  # unique_userid
+    excluded_sheet.set_column('B:B', 30)  # excluded_word
+    
+    # Title row
+    excluded_sheet.merge_range('A1:B1', 'Excluded Words', title_format)
+    
+    # Instructions row
+    excluded_sheet.merge_range('A2:B2', 'Add words to exclude from search. Match unique_userid with the Users sheet.', instructions_format)
+    
+    # Excluded words headers
+    excluded_headers = [
+        'unique_userid',
+        'excluded_word'
+    ]
+    
+    for col, header in enumerate(excluded_headers):
+        excluded_sheet.write(3, col, header, header_format)
+    
+    # Create a Resellers worksheet (empty template)
+    resellers_sheet = workbook.add_worksheet('Resellers')
+    
+    # Set column widths
+    resellers_sheet.set_column('A:A', 18)  # unique_userid
+    resellers_sheet.set_column('B:B', 30)  # reseller_name
+    
+    # Title row
+    resellers_sheet.merge_range('A1:B1', 'Resellers', title_format)
+    
+    # Instructions row
+    resellers_sheet.merge_range('A2:B2', 'Add preferred resellers. Match unique_userid with the Users sheet.', instructions_format)
+    
+    # Resellers headers
+    resellers_headers = [
+        'unique_userid',
+        'reseller_name'
+    ]
+    
+    for col, header in enumerate(resellers_headers):
+        resellers_sheet.write(3, col, header, header_format)
+    
+    # Create Instructions sheet
+    instructions_sheet = workbook.add_worksheet('Instructions')
+    
+    # Set column widths
+    instructions_sheet.set_column('A:A', 100)
+    
+    # Add instructions
+    instructions = [
+        "IPHONE FLIPPERS - DATA IMPORT/EXPORT INSTRUCTIONS",
+        "",
+        "This Excel file contains multiple sheets for managing user data and preferences:",
+        "",
+        "1. USERS SHEET",
+        "   • Contains basic user information and notification settings",
+        "   • Required fields: unique_userid, location",
+        "   • For notification modes, set exactly ONE to 1 (Yes) and the rest to 0 (No)",
+        "",
+        "2. PRODUCTS SHEET",
+        "   • Contains product preferences for each user",
+        "   • Each row represents one product preference for one user",
+        "   • The unique_userid must match a user in the Users sheet",
+        "   • min_price is the minimum price you'd accept (default: 100)",
+        "   • max_price is the maximum price you'd be willing to pay",
+        "   • preferred should be 1 (Yes) or 0 (No)",
+        "",
+        "3. KEYWORDS SHEET",
+        "   • Add search keywords for users",
+        "   • Each row is one keyword for one user",
+        "",
+        "4. EXCLUDED WORDS SHEET",
+        "   • Add words to exclude from search results",
+        "   • Each row is one excluded word for one user",
+        "",
+        "5. RESELLERS SHEET",
+        "   • Add preferred resellers",
+        "   • Each row is one reseller for one user",
+        "",
+        "IMPORTANT NOTES:",
+        "• When importing, make sure all your unique_userid values in dependent sheets match the Users sheet",
+        "• Do not modify the header rows or sheet structure",
+        "• For importing, save as Excel (.xlsx) format",
+        "• If you're unsure about a field, leave it as is"
+    ]
+    
+    row = 0
+    for line in instructions:
+        if not line:
+            # Empty line
+            instructions_sheet.write(row, 0, '')
+        elif line.startswith("IPHONE FLIPPERS"):
+            # Title
+            instructions_sheet.write(row, 0, line, title_format)
+        elif line.strip().endswith(":") or line.startswith("IMPORTANT"):
+            # Section header
+            section_format = workbook.add_format({'bold': True, 'font_size': 12})
+            instructions_sheet.write(row, 0, line, section_format)
+        else:
+            # Regular text
+            instructions_sheet.write(row, 0, line, instructions_format)
+        row += 1
+    
+    # Close the workbook
+    workbook.close()
+    
+    # Seek to the beginning of the file
     output.seek(0)
-    
-    # Create an in-memory bytes buffer
-    bytes_output = io.BytesIO()
-    bytes_output.write(output.getvalue().encode('utf-8-sig'))  # Use UTF-8 with BOM for Excel compatibility
-    bytes_output.seek(0)
     
     # Generate filename with timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
     return send_file(
-        bytes_output,
+        output,
         as_attachment=True,
-        download_name=f'iphone_flippers_users_{timestamp}.csv',
-        mimetype='text/csv'
+        download_name=f'iphone_flippers_data_{timestamp}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
 @admin_bp.route('/import', methods=['GET', 'POST'])
@@ -269,142 +462,15 @@ def import_data():
             flash('No selected file', 'danger')
             return redirect(request.url)
         
-        if file and file.filename.endswith('.csv'):
-            # Process the CSV file
-            try:
-                # Read file into memory 
-                stream = io.StringIO(file.stream.read().decode("UTF-8-sig"))
-                # Skip header rows (if they exist)
-                for _ in range(3):  # Skip potential header/description rows
-                    line = stream.readline()
-                    if not line or 'unique_userid' in line:
-                        # We've reached the actual header row or there are no header rows
-                        break
-
-                # Reset to start of file if we didn't find the header
-                if 'unique_userid' not in line:
-                    stream.seek(0)
-                
-                # Read CSV into a list of dictionaries
-                csv_reader = csv.DictReader(stream)
-                
-                # Counters for statistics
-                added = 0
-                updated = 0
-                errors = 0
-                
-                for row in csv_reader:
-                    try:
-                        # Skip rows that are likely comments or instructions
-                        if not row.get('unique_userid') or row.get('unique_userid').startswith('---'):
-                            continue
-                            
-                        # Find or create a new preference entry based on unique_userid
-                        unique_userid = row['unique_userid'].strip()
-                        
-                        # Extract location from the CSV
-                        location = row['location'].strip() if row.get('location') else ''
-                        if not location:
-                            raise ValueError("Location is required but was empty")
-                            
-                        # Determine notification mode from mode flags
-                        notification_mode = 'all'  # Default
-                        
-                        if row.get('mode_only_preferred') and int(row.get('mode_only_preferred', 0)) == 1:
-                            notification_mode = 'only_preferred'
-                        elif row.get('good_deals') and int(row.get('good_deals', 0)) == 1:
-                            notification_mode = 'good_deal'
-                        elif row.get('near_good_deals') and int(row.get('near_good_deals', 0)) == 1:
-                            notification_mode = 'near_good_deal'
-                        elif row.get('non_good_deals') and int(row.get('non_good_deals', 0)) == 1:
-                            notification_mode = 'all'
-                        
-                        # Look up by unique_userid in the format "user_X"
-                        if unique_userid.startswith('user_'):
-                            try:
-                                pref_id = int(unique_userid.split('_')[1])
-                                preference = Preference.query.get(pref_id)
-                            except:
-                                preference = None
-                        else:
-                            preference = None
-                            
-                        if preference:
-                            # Update existing preference
-                            preference.location = location
-                            preference.suburb = row.get('suburb', '').strip() if row.get('suburb') else ''
-                            preference.notification_mode = notification_mode
-                            updated += 1
-                        else:
-                            # Create new preference
-                            preference = Preference(
-                                location=location,
-                                suburb='',  # Not in our import format but required in model
-                                notification_mode=notification_mode
-                            )
-                            db.session.add(preference)
-                            db.session.flush()  # Get ID without committing
-                            added += 1
-                        
-                        # Process products
-                        # First, delete existing products
-                        for product in preference.products:
-                            db.session.delete(product)
-                        
-                        # Add new products from CSV using the new human-readable format
-                        products_data = row.get('products', '')
-                        if products_data:
-                            # Parse products in the format [Product=X|MaxPrice=Y|Preferred=Z]
-                            import re
-                            
-                            # Find all product entries using regex
-                            product_matches = re.findall(r'\[(Product=([^|]+)\|MaxPrice=([^|]+)\|Preferred=([^]]+))\]', products_data)
-                            
-                            for _, name, max_price, preferred in product_matches:
-                                name = name.strip()
-                                
-                                # Convert max_price to integer
-                                try:
-                                    max_price = int(float(max_price.strip()))
-                                except:
-                                    max_price = 0
-                                
-                                # Convert preferred to boolean (Yes/No or 1/0)
-                                preferred_value = preferred.strip().lower()
-                                is_preferred = (preferred_value == 'yes' or preferred_value == '1' or preferred_value == 'true')
-                                
-                                # Validate the product name is in our list
-                                if name in IPHONE_MODELS:
-                                    product_pref = ProductPreference(
-                                        preference_id=preference.id,
-                                        product_name=name,
-                                        max_price=max_price,
-                                        is_preferred=is_preferred
-                                    )
-                                    db.session.add(product_pref)
-                                else:
-                                    print(f"Warning: Skipping unknown product name: {name}")
-                        
-                        db.session.commit()
-                        
-                    except Exception as e:
-                        db.session.rollback()
-                        errors += 1
-                        print(f"Error processing row: {e}")
-                
-                message = f'Import completed. Added: {added}, Updated: {updated}'
-                if errors > 0:
-                    message += f', Errors: {errors}'
-                    flash(message, 'warning')
-                else:
-                    flash(message, 'success')
-                    
-            except Exception as e:
-                flash(f'Error processing CSV: {str(e)}', 'danger')
+        if file and (file.filename.endswith('.xlsx') or file.filename.endswith('.csv')):
+            # TODO: Implement Excel import logic here using pandas or openpyxl
+            # This would read the excel file and process each sheet accordingly
             
+            # For now, just show a placeholder message
+            flash('Excel import not yet implemented', 'warning')
             return redirect(url_for('admin.dashboard'))
         else:
-            flash('Please upload a CSV file', 'danger')
+            flash('Please upload an Excel (.xlsx) or CSV file', 'danger')
             return redirect(request.url)
     
     # GET request - show upload form
