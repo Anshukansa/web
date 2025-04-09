@@ -13,3 +13,4 @@ itsdangerous==2.1.2
 Jinja2==3.1.2
 SQLAlchemy==2.0.23
 python-dotenv==1.0.0
+XlsxWriter==3.1.9

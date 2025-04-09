@@ -11,7 +11,7 @@
     <h2>All Form Responses</h2>
     <div>
         <a href="{{ url_for('admin.export_data') }}" class="btn btn-success">
-            <i class="fas fa-file-export me-2"></i>Export to CSV
+            <i class="fas fa-file-export me-2"></i>Export All to CSV
         </a>
         <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary ms-2">
             <i class="fas fa-tachometer-alt me-2"></i>Dashboard
@@ -91,6 +91,10 @@
                                                 data-bs-target="#deleteModal{{ preference.id }}">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
+                                        <!-- Export to CSV for specific response -->
+                                        <a href="{{ url_for('admin.export_single_response', id=preference.id) }}" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-file-export"></i> Export
+                                        </a>
                                     </div>
                                     
                                     <!-- Delete Modal -->
