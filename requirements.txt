@@ -11,5 +11,5 @@ Werkzeug==2.3.7
 alembic==1.12.1
 itsdangerous==2.1.2
 Jinja2==3.1.2
-SQLAlchemy==1.4.46
+SQLAlchemy==2.0.23
 python-dotenv==1.0.0
