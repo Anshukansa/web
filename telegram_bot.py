@@ -23,13 +23,16 @@ def generate_secure_link(user_id, user_name):
     """Generate a secure link with encrypted parameters."""
     # Prepare data to include in the URL
     data = {
-        'user_id': user_id,
+        'user_id': str(user_id),
         'user_name': user_name,
-        'timestamp': int(time.time())
+        'timestamp': str(int(time.time()))
     }
     
-    # Create a query string from the data
-    query_string = urlencode(data)
+    # Create a sorted query string for consistent ordering (IMPORTANT FIX)
+    query_params = []
+    for key in sorted(data.keys()):
+        query_params.append(f"{key}={data[key]}")
+    query_string = "&".join(query_params)
     
     # Generate HMAC signature for security
     signature = hmac.new(
@@ -38,11 +41,16 @@ def generate_secure_link(user_id, user_name):
         hashlib.sha256
     ).hexdigest()
     
-    # Add signature to data
-    data['signature'] = signature
+    # Add signature to data for the final URL
+    final_data = data.copy()
+    final_data['signature'] = signature
     
     # Create final URL with all parameters
-    url = f"{WEBAPP_URL}/telegram-form?{urlencode(data)}"
+    url = f"{WEBAPP_URL}/telegram-form?{urlencode(final_data)}"
+    
+    # Debug output to verify signature generation
+    logger.info(f"Generated link with signature: {signature}")
+    logger.info(f"Query string used for signature: {query_string}")
     
     return url
 
