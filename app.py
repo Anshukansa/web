@@ -42,7 +42,8 @@ def create_app(config_class=config.Config):
     
     return app
 
+app = create_app()  # Create the app at the module level
+
 if __name__ == '__main__':
-    app = create_app()
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
