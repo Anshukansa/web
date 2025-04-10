@@ -225,15 +225,36 @@ def export_data():
             unique_userid = pref.unique_userid or f"user_{pref.id}"
             
             # Set default mode values based on notification_mode
-            mode_only_preferred = 1 if pref.notification_mode == 'only_preferred' else 0
-            non_good_deals = 1 if pref.notification_mode == 'all' else 0
-            good_deals = 1 if pref.notification_mode == 'good_deal' else 0
-            near_good_deals = 1 if pref.notification_mode == 'near_good_deal' else 0
+            if pref.notification_mode == 'all':
+                mode_only_preferred = 0
+                non_good_deals = 1
+                good_deals = 0
+                near_good_deals = 0
+            elif pref.notification_mode == 'only_preferred':
+                mode_only_preferred = 1
+                non_good_deals = 0
+                good_deals = 0
+                near_good_deals = 0
+            elif pref.notification_mode == 'near_good_deal':
+                mode_only_preferred = 1
+                non_good_deals = 0
+                good_deals = 0
+                near_good_deals = 1
+            elif pref.notification_mode == 'good_deal':
+                mode_only_preferred = 1
+                non_good_deals = 0
+                good_deals = 1
+                near_good_deals = 1
+            else:  # fallback to 'all' if unknown
+                mode_only_preferred = 0
+                non_good_deals = 1
+                good_deals = 0
+                near_good_deals = 0
             
-            # Format expiry_date if exists
+            # Format expiry_date if exists - Ensuring YYYY-MM-DD format
             expiry_date_str = ""
             if pref.expiry_date:
-                expiry_date_str = pref.expiry_date.strftime('%Y-%m-%d')
+                expiry_date_str = pref.expiry_date.strftime('%Y-%m-%d')  # Explicit YYYY-MM-DD format
             
             # Create row with available data and empty fields for the rest
             user_row = [
@@ -361,15 +382,36 @@ def export_single_response(id):
         unique_userid = preference.unique_userid or f"user_{preference.id}"
         
         # Set default mode values based on notification_mode
-        mode_only_preferred = 1 if preference.notification_mode == 'only_preferred' else 0
-        non_good_deals = 1 if preference.notification_mode == 'all' else 0
-        good_deals = 1 if preference.notification_mode == 'good_deal' else 0
-        near_good_deals = 1 if preference.notification_mode == 'near_good_deal' else 0
+        if preference.notification_mode == 'all':
+            mode_only_preferred = 0
+            non_good_deals = 1
+            good_deals = 0
+            near_good_deals = 0
+        elif preference.notification_mode == 'only_preferred':
+            mode_only_preferred = 1
+            non_good_deals = 0
+            good_deals = 0
+            near_good_deals = 0
+        elif preference.notification_mode == 'near_good_deal':
+            mode_only_preferred = 1
+            non_good_deals = 0
+            good_deals = 0
+            near_good_deals = 1
+        elif preference.notification_mode == 'good_deal':
+            mode_only_preferred = 1
+            non_good_deals = 0
+            good_deals = 1
+            near_good_deals = 1
+        else:  # fallback to 'all' if unknown
+            mode_only_preferred = 0
+            non_good_deals = 1
+            good_deals = 0
+            near_good_deals = 0
         
-        # Format expiry_date if exists
+        # Format expiry_date if exists - Ensuring YYYY-MM-DD format
         expiry_date_str = ""
         if preference.expiry_date:
-            expiry_date_str = preference.expiry_date.strftime('%Y-%m-%d')
+            expiry_date_str = preference.expiry_date.strftime('%Y-%m-%d')  # Explicit YYYY-MM-DD format
         
         # Create row with available data and empty fields for the rest
         user_row = [
@@ -451,7 +493,7 @@ def export_csv():
     """Export single CSV file for backward compatibility"""
     # Create CSV in memory
     output = io.StringIO()
-    writer = csv.writer(output)
+    writer = csv.writer(output, quoting=csv.QUOTE_NONNUMERIC)  # Quote all fields to preserve formatting
     
     # Just the header row
     header = [
@@ -471,10 +513,31 @@ def export_csv():
         unique_userid = pref.unique_userid or f"user_{pref.id}"
         
         # Set default mode values based on notification_mode
-        mode_only_preferred = 1 if pref.notification_mode == 'only_preferred' else 0
-        non_good_deals = 1 if pref.notification_mode == 'all' else 0
-        good_deals = 1 if pref.notification_mode == 'good_deal' else 0
-        near_good_deals = 1 if pref.notification_mode == 'near_good_deal' else 0
+        if pref.notification_mode == 'all':
+            mode_only_preferred = 0
+            non_good_deals = 1
+            good_deals = 0
+            near_good_deals = 0
+        elif pref.notification_mode == 'only_preferred':
+            mode_only_preferred = 1
+            non_good_deals = 0
+            good_deals = 0
+            near_good_deals = 0
+        elif pref.notification_mode == 'near_good_deal':
+            mode_only_preferred = 1
+            non_good_deals = 0
+            good_deals = 0
+            near_good_deals = 1
+        elif pref.notification_mode == 'good_deal':
+            mode_only_preferred = 1
+            non_good_deals = 0
+            good_deals = 1
+            near_good_deals = 1
+        else:  # fallback to 'all' if unknown
+            mode_only_preferred = 0
+            non_good_deals = 1
+            good_deals = 0
+            near_good_deals = 0
         
         # Extract products with better formatting
         products_list = []
@@ -490,10 +553,10 @@ def export_csv():
         keywords_str = ";".join(DEFAULT_KEYWORDS)
         excluded_words_str = ";".join(DEFAULT_EXCLUDED_WORDS)
         
-        # Format expiry_date if exists
+        # Format expiry_date if exists - Ensuring YYYY-MM-DD format
         expiry_date_str = ""
         if pref.expiry_date:
-            expiry_date_str = pref.expiry_date.strftime('%Y-%m-%d')
+            expiry_date_str = pref.expiry_date.strftime('%Y-%m-%d')  # Explicit YYYY-MM-DD format
         
         # Create row with available data and empty fields for the rest
         row = [
@@ -576,18 +639,24 @@ def import_data():
                         location = row['location'].strip() if row.get('location') else ''
                         if not location:
                             raise ValueError("Location is required but was empty")
-                            
-                        # Determine notification mode from mode flags
-                        notification_mode = 'all'  # Default
                         
-                        if row.get('mode_only_preferred') and int(row.get('mode_only_preferred', 0)) == 1:
-                            notification_mode = 'only_preferred'
-                        elif row.get('good_deals') and int(row.get('good_deals', 0)) == 1:
-                            notification_mode = 'good_deal'
-                        elif row.get('near_good_deals') and int(row.get('near_good_deals', 0)) == 1:
-                            notification_mode = 'near_good_deal'
-                        elif row.get('non_good_deals') and int(row.get('non_good_deals', 0)) == 1:
+                        # Determine notification mode from mode flags
+                        # Convert flag values to integers (defaulting to 0)
+                        mode_only_preferred = int(row.get('mode_only_preferred', 0))
+                        non_good_deals = int(row.get('non_good_deals', 0))
+                        good_deals = int(row.get('good_deals', 0))
+                        near_good_deals = int(row.get('near_good_deals', 0))
+                        
+                        if non_good_deals == 1 and mode_only_preferred == 0 and good_deals == 0 and near_good_deals == 0:
                             notification_mode = 'all'
+                        elif mode_only_preferred == 1 and non_good_deals == 0 and good_deals == 0 and near_good_deals == 0:
+                            notification_mode = 'only_preferred'
+                        elif mode_only_preferred == 1 and non_good_deals == 0 and good_deals == 0 and near_good_deals == 1:
+                            notification_mode = 'near_good_deal'
+                        elif mode_only_preferred == 1 and non_good_deals == 0 and good_deals == 1 and near_good_deals == 1:
+                            notification_mode = 'good_deal'
+                        else:
+                            notification_mode = 'all'  # Default
                             
                         # First try to find by unique_userid if it exists in our database
                         preference = Preference.query.filter_by(unique_userid=unique_userid).first()
