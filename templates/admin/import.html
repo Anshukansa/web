@@ -18,63 +18,123 @@
 
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-primary text-white">
-        <h5 class="mb-0">Upload Excel File</h5>
+        <h5 class="mb-0">Import Options</h5>
     </div>
     <div class="card-body">
-        <form method="POST" enctype="multipart/form-data">
-            <div class="mb-3">
-                <label for="file" class="form-label">Select Excel file to import</label>
-                <input class="form-control" type="file" id="file" name="file" accept=".xlsx">
-                <div class="form-text">
-                    The Excel file should match the export format with all required sheets. All users in the file will be added or updated.
-                </div>
+        <ul class="nav nav-tabs" id="importTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="zip-tab" data-bs-toggle="tab" data-bs-target="#zip-tab-pane" type="button" role="tab" aria-controls="zip-tab-pane" aria-selected="true">ZIP File (Recommended)</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="csv-tab" data-bs-toggle="tab" data-bs-target="#csv-tab-pane" type="button" role="tab" aria-controls="csv-tab-pane" aria-selected="false">Single CSV</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="multi-tab" data-bs-toggle="tab" data-bs-target="#multi-tab-pane" type="button" role="tab" aria-controls="multi-tab-pane" aria-selected="false">Multiple Files</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content p-3 border border-top-0 rounded-bottom" id="importTabsContent">
+            <!-- ZIP File Import -->
+            <div class="tab-pane fade show active" id="zip-tab-pane" role="tabpanel" aria-labelledby="zip-tab" tabindex="0">
+                <p>Upload the ZIP file that contains all CSV files (users.csv, products.csv, etc.)</p>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="zipFile" class="form-label">Select ZIP file</label>
+                        <input class="form-control" type="file" id="zipFile" name="file" accept=".zip">
+                        <div class="form-text">
+                            The ZIP file should contain all the CSV files from your previous export.
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Recommended:</strong> This method preserves all relationships between users and products.
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Import ZIP
+                    </button>
+                </form>
             </div>
-            <div class="alert alert-warning">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                <strong>Warning:</strong> Importing data will update existing users if they match by unique_userid. 
-                Make sure your Excel data is correct before importing.
+            
+            <!-- Single CSV Import -->
+            <div class="tab-pane fade" id="csv-tab-pane" role="tabpanel" aria-labelledby="csv-tab" tabindex="0">
+                <p>Upload a single CSV file with user data</p>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label">Select CSV file</label>
+                        <input class="form-control" type="file" id="csvFile" name="file" accept=".csv">
+                        <div class="form-text">
+                            This should be the users.csv file or a combined CSV with all user information.
+                        </div>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> Single CSV import may not include product preferences. Default products will be created if none are found.
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Import CSV
+                    </button>
+                </form>
             </div>
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-upload me-2"></i>Import Data
-            </button>
-            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary ms-2">
-                <i class="fas fa-times me-2"></i>Cancel
-            </a>
-        </form>
+            
+            <!-- Multiple File Import -->
+            <div class="tab-pane fade" id="multi-tab-pane" role="tabpanel" aria-labelledby="multi-tab" tabindex="0">
+                <p>Upload individual CSV files for users and products</p>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="usersFile" class="form-label"><strong>Users File (Required)</strong></label>
+                        <input class="form-control" type="file" id="usersFile" name="users_file" accept=".csv" required>
+                        <div class="form-text">
+                            This should be the users.csv file with basic user information.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="productsFile" class="form-label"><strong>Products File (Optional)</strong></label>
+                        <input class="form-control" type="file" id="productsFile" name="products_file" accept=".csv">
+                        <div class="form-text">
+                            This should be the products.csv file with product preferences.
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> If no products file is uploaded, default products will be created for each user.
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Import Files
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
 <div class="card shadow-sm">
     <div class="card-header bg-info text-white">
-        <h5 class="mb-0">Excel Format Instructions</h5>
+        <h5 class="mb-0">Import File Requirements</h5>
     </div>
     <div class="card-body">
-        <p>The Excel file should contain the following sheets:</p>
-        
         <div class="accordion mb-4" id="importInstructions">
             <div class="accordion-item">
                 <h2 class="accordion-header" id="headingUsers">
                     <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseUsers" aria-expanded="true" aria-controls="collapseUsers">
-                        Users Sheet
+                        Users.csv Requirements
                     </button>
                 </h2>
                 <div id="collapseUsers" class="accordion-collapse collapse show" aria-labelledby="headingUsers" data-bs-parent="#importInstructions">
                     <div class="accordion-body">
-                        <p>Contains basic user information and notification settings:</p>
+                        <p>The users.csv file must contain the following columns:</p>
                         <ul>
-                            <li><strong>unique_userid</strong>: Unique identifier for each user</li>
-                            <li><strong>user_id</strong>: User's login ID</li>
-                            <li><strong>user_name</strong>: User's display name</li>
+                            <li><strong>unique_userid</strong>: Unique identifier for each user (Required)</li>
                             <li><strong>location</strong>: User's location (Required)</li>
-                            <li><strong>activation_status</strong>: 1 for active, 0 for inactive</li>
-                            <li><strong>expiry_date</strong>: Subscription expiry (YYYY-MM-DD)</li>
-                            <li><strong>fixed_lat</strong>: Latitude coordinate</li>
-                            <li><strong>fixed_lon</strong>: Longitude coordinate</li>
-                            <li><strong>password</strong>: User's password</li>
-                            <li><strong>mode_only_preferred</strong>: 1 to enable</li>
-                            <li><strong>non_good_deals</strong>: 1 to enable</li>
-                            <li><strong>good_deals</strong>: 1 to enable</li>
-                            <li><strong>near_good_deals</strong>: 1 to enable</li>
+                            <li><strong>mode_only_preferred, non_good_deals, good_deals, near_good_deals</strong>: Notification mode flags</li>
+                            <li><strong>expiry_date</strong>: Must be in YYYY-MM-DD format</li>
+                            <li>Other fields: user_id, user_name, suburb, activation_status, fixed_lat, fixed_lon, etc.</li>
+                        </ul>
+                        <p><strong>Notification Mode Settings:</strong></p>
+                        <ul>
+                            <li><strong>All</strong>: non_good_deals=1, all others=0</li>
+                            <li><strong>Only Preferred</strong>: mode_only_preferred=1, all others=0</li>
+                            <li><strong>Near Good Deal</strong>: mode_only_preferred=1, near_good_deals=1, others=0</li>
+                            <li><strong>Good Deal</strong>: mode_only_preferred=1, near_good_deals=1, good_deals=1, non_good_deals=0</li>
                         </ul>
                     </div>
                 </div>
@@ -83,38 +143,39 @@
             <div class="accordion-item">
                 <h2 class="accordion-header" id="headingProducts">
                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseProducts" aria-expanded="false" aria-controls="collapseProducts">
-                        Products Sheet
+                        Products.csv Requirements
                     </button>
                 </h2>
                 <div id="collapseProducts" class="accordion-collapse collapse" aria-labelledby="headingProducts" data-bs-parent="#importInstructions">
                     <div class="accordion-body">
-                        <p>Contains product preferences for each user:</p>
+                        <p>The products.csv file must contain the following columns:</p>
                         <ul>
-                            <li><strong>unique_userid</strong>: Must match a user in the Users sheet</li>
-                            <li><strong>name</strong>: Product name (e.g., iPhone 16 Pro)</li>
-                            <li><strong>min_price</strong>: Minimum acceptable price</li>
-                            <li><strong>max_price</strong>: Maximum price willing to pay</li>
-                            <li><strong>preferred</strong>: 1 for yes, 0 for no</li>
+                            <li><strong>unique_userid</strong>: Must match IDs in users.csv (Required)</li>
+                            <li><strong>name</strong>: Product name must be a valid iPhone model (Required)</li>
+                            <li><strong>max_price</strong>: Maximum price value (Required)</li>
+                            <li><strong>preferred</strong>: 1 for preferred, 0 for not preferred</li>
+                            <li><strong>min_price</strong>: Minimum price (Optional, usually set to 100)</li>
                         </ul>
+                        <p><strong>Note:</strong> Each user can have multiple products, creating multiple rows with the same unique_userid.</p>
                     </div>
                 </div>
             </div>
             
             <div class="accordion-item">
-                <h2 class="accordion-header" id="headingKeywords">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseKeywords" aria-expanded="false" aria-controls="collapseKeywords">
-                        Other Sheets (Keywords, Excluded Words, Resellers)
+                <h2 class="accordion-header" id="headingTips">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTips" aria-expanded="false" aria-controls="collapseTips">
+                        Import Tips
                     </button>
                 </h2>
-                <div id="collapseKeywords" class="accordion-collapse collapse" aria-labelledby="headingKeywords" data-bs-parent="#importInstructions">
+                <div id="collapseTips" class="accordion-collapse collapse" aria-labelledby="headingTips" data-bs-parent="#importInstructions">
                     <div class="accordion-body">
-                        <p>These additional sheets all follow a similar format:</p>
                         <ul>
-                            <li><strong>Keywords Sheet</strong>: unique_userid, keyword</li>
-                            <li><strong>Excluded Words Sheet</strong>: unique_userid, excluded_word</li>
-                            <li><strong>Resellers Sheet</strong>: unique_userid, reseller_name</li>
+                            <li><strong>Date Format:</strong> Make sure all dates are in YYYY-MM-DD format (e.g. 2025-12-31)</li>
+                            <li><strong>CSV Encoding:</strong> Files should be UTF-8 encoded</li>
+                            <li><strong>Notification Modes:</strong> Pay attention to the correct flag combinations</li>
+                            <li><strong>ZIP Import:</strong> The recommended approach is to upload the ZIP file exactly as exported</li>
+                            <li><strong>Backup:</strong> Always make a backup before importing large amounts of data</li>
                         </ul>
-                        <p>Each row represents one item for one user, and the unique_userid must match a user in the Users sheet.</p>
                     </div>
                 </div>
             </div>
@@ -122,7 +183,7 @@
         
         <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
-            <strong>Tip:</strong> The easiest way to get started is to first export your data, which will create a properly formatted Excel file with all the required sheets.
+            <strong>Tip:</strong> The easiest way to get started is to first export your data, which will create properly formatted files with all the required fields.
         </div>
     </div>
 </div>
