@@ -612,70 +612,61 @@ def import_data():
             flash('No selected file', 'danger')
             return redirect(request.url)
         
-        if file and file.filename.endswith('.csv'):
-            # Process the CSV file
+        # Handle ZIP file
+        if file and file.filename.endswith('.zip'):
             try:
-                # Read file into memory 
-                stream = io.StringIO(file.stream.read().decode("UTF-8-sig"))
+                # Save the uploaded zip file to a temporary file
+                import tempfile
+                import zipfile
                 
-                # Read CSV into a list of dictionaries
-                csv_reader = csv.DictReader(stream)
+                temp_dir = tempfile.mkdtemp()
+                zip_path = os.path.join(temp_dir, 'import.zip')
+                file.save(zip_path)
                 
-                # Counters for statistics
+                # Extract data from each CSV in the ZIP
+                users_data = {}
+                products_data = {}
+                
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    # Extract and process users.csv
+                    if 'users.csv' in zip_ref.namelist():
+                        with zip_ref.open('users.csv') as users_file:
+                            users_content = io.TextIOWrapper(users_file, encoding='utf-8-sig')
+                            users_reader = csv.DictReader(users_content)
+                            for row in users_reader:
+                                users_data[row['unique_userid']] = row
+                    
+                    # Extract and process products.csv
+                    if 'products.csv' in zip_ref.namelist():
+                        with zip_ref.open('products.csv') as products_file:
+                            products_content = io.TextIOWrapper(products_file, encoding='utf-8-sig')
+                            products_reader = csv.DictReader(products_content)
+                            for row in products_reader:
+                                if row['unique_userid'] not in products_data:
+                                    products_data[row['unique_userid']] = []
+                                products_data[row['unique_userid']].append(row)
+                
+                # Process the imported data
                 added = 0
                 updated = 0
                 errors = 0
-                skipped = 0
                 
-                # Create a log of issues
-                error_log = []
-                
-                for row_num, row in enumerate(csv_reader, start=2):  # Start from 2 to account for header
+                for unique_userid, user_row in users_data.items():
                     try:
-                        # Skip rows that are likely comments or instructions
-                        if not row.get('unique_userid') or str(row.get('unique_userid')).startswith('---'):
-                            skipped += 1
-                            continue
-                            
-                        # Get the unique_userid from the CSV
-                        unique_userid = str(row.get('unique_userid', '')).strip()
-                        if not unique_userid:
-                            error_log.append(f"Row {row_num}: Missing unique_userid. Skipping.")
-                            skipped += 1
-                            continue
-                        
-                        # Extract location from the CSV
-                        location = str(row.get('location', '')).strip()
+                        # Get basic user data
+                        location = user_row.get('location', '').strip()
                         if not location:
-                            error_log.append(f"Row {row_num}: ({unique_userid}) Missing location. Skipping.")
+                            print(f"Error: Missing location for {unique_userid}")
                             errors += 1
                             continue
                         
-                        # Safer parsing of numeric fields
-                        def safe_int(value, default=0):
-                            if value is None:
-                                return default
-                            try:
-                                # Handle different formats - some might be strings, some might have spaces
-                                value_str = str(value).strip()
-                                if value_str == '':
-                                    return default
-                                # Handle floating point numbers that might be in the CSV
-                                return int(float(value_str))
-                            except (ValueError, TypeError):
-                                error_log.append(f"Row {row_num}: ({unique_userid}) Could not parse value '{value}' as integer. Using default {default}.")
-                                return default
+                        # Parse notification mode flags
+                        mode_only_preferred = int(user_row.get('mode_only_preferred', 0))
+                        non_good_deals = int(user_row.get('non_good_deals', 0))
+                        good_deals = int(user_row.get('good_deals', 0))
+                        near_good_deals = int(user_row.get('near_good_deals', 0))
                         
-                        # Determine notification mode from mode flags
-                        mode_only_preferred = safe_int(row.get('mode_only_preferred'), 0)
-                        non_good_deals = safe_int(row.get('non_good_deals'), 0)
-                        good_deals = safe_int(row.get('good_deals'), 0) 
-                        near_good_deals = safe_int(row.get('near_good_deals'), 0)
-                        
-                        # Log the mode values for debugging
-                        print(f"Row {row_num}: mode_only_preferred={mode_only_preferred}, non_good_deals={non_good_deals}, good_deals={good_deals}, near_good_deals={near_good_deals}")
-                        
-                        # Determine notification mode based on the exact flag combinations
+                        # Determine notification mode
                         if non_good_deals == 1 and mode_only_preferred == 0 and good_deals == 0 and near_good_deals == 0:
                             notification_mode = 'all'
                         elif mode_only_preferred == 1 and non_good_deals == 0 and good_deals == 0 and near_good_deals == 0:
@@ -685,72 +676,49 @@ def import_data():
                         elif mode_only_preferred == 1 and non_good_deals == 0 and good_deals == 1 and near_good_deals == 1:
                             notification_mode = 'good_deal'
                         else:
-                            # If we can't determine the mode, make an educated guess
-                            if good_deals == 1:
-                                notification_mode = 'good_deal'
-                            elif near_good_deals == 1:
-                                notification_mode = 'near_good_deal'
-                            elif mode_only_preferred == 1:
-                                notification_mode = 'only_preferred'
-                            else:
-                                notification_mode = 'all'  # Default
-                            error_log.append(f"Row {row_num}: ({unique_userid}) Ambiguous notification mode flags. Guessed '{notification_mode}'.")
+                            notification_mode = 'all'  # Default
+                            print(f"Warning: Ambiguous notification mode for {unique_userid}")
                         
-                        # First try to find by unique_userid if it exists in our database
+                        # Parse other fields
+                        user_id = user_row.get('user_id', '').strip()
+                        user_name = user_row.get('user_name', '').strip()
+                        suburb = user_row.get('suburb', '').strip()
+                        activation_status = int(user_row.get('activation_status', 1)) == 1
+                        
+                        # Handle expiry date
+                        expiry_date = None
+                        expiry_date_str = user_row.get('expiry_date', '').strip()
+                        if expiry_date_str:
+                            try:
+                                expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+                            except ValueError:
+                                try:
+                                    # Try alternative format
+                                    expiry_date = datetime.strptime(expiry_date_str, '%d-%m-%Y').date()
+                                except ValueError:
+                                    print(f"Warning: Could not parse expiry date {expiry_date_str} for {unique_userid}")
+                        
+                        fixed_lat = user_row.get('fixed_lat', '').strip()
+                        fixed_lon = user_row.get('fixed_lon', '').strip()
+                        
+                        # Find or create preference
                         preference = Preference.query.filter_by(unique_userid=unique_userid).first()
                         
-                        # If not found by unique_userid, try to match by the format "user_X" or "telegram_X"
-                        if not preference:
-                            for prefix in ['user_', 'telegram_']:
-                                if unique_userid.startswith(prefix):
-                                    try:
-                                        pref_id = int(unique_userid.split('_')[1])
-                                        preference = Preference.query.get(pref_id)
-                                        if preference:
-                                            break
-                                    except (ValueError, IndexError):
-                                        pass
-                                        
-                        # Parse activation status
-                        try:
-                            activation_status = safe_int(row.get('activation_status'), 1) == 1
-                        except Exception:
-                            activation_status = True
-                            error_log.append(f"Row {row_num}: ({unique_userid}) Invalid activation_status. Using default (active).")
-                        
-                        # Parse expiry date
-                        expiry_date = None
-                        if row.get('expiry_date'):
-                            expiry_date_str = str(row.get('expiry_date', '')).strip()
-                            if expiry_date_str:
-                                try:
-                                    # Try different date formats
-                                    for date_format in ['%Y-%m-%d', '%d-%m-%Y', '%m-%d-%Y', '%Y/%m/%d', '%d/%m/%Y', '%m/%d/%Y']:
-                                        try:
-                                            expiry_date = datetime.strptime(expiry_date_str, date_format).date()
-                                            break
-                                        except ValueError:
-                                            continue
-                                    
-                                    if not expiry_date:
-                                        error_log.append(f"Row {row_num}: ({unique_userid}) Could not parse expiry date '{expiry_date_str}'.")
-                                except Exception as e:
-                                    error_log.append(f"Row {row_num}: ({unique_userid}) Error processing expiry date: {e}")
-                        
-                        # Get other fields with defaults
-                        suburb = str(row.get('suburb', '')).strip()
-                        user_id = str(row.get('user_id', '')).strip()
-                        user_name = str(row.get('user_name', '')).strip()
-                        fixed_lat = str(row.get('fixed_lat', '')).strip()
-                        fixed_lon = str(row.get('fixed_lon', '')).strip()
+                        # If not found by unique_userid, try to match by id format
+                        if not preference and (unique_userid.startswith('user_') or unique_userid.startswith('telegram_')):
+                            try:
+                                parts = unique_userid.split('_')
+                                if len(parts) > 1:
+                                    pref_id = int(parts[1])
+                                    preference = Preference.query.get(pref_id)
+                            except:
+                                preference = None
                         
                         if preference:
                             # Update existing preference
                             preference.location = location
                             preference.suburb = suburb
                             preference.notification_mode = notification_mode
-                            
-                            # Update admin fields
                             preference.unique_userid = unique_userid
                             preference.user_id = user_id
                             preference.user_name = user_name
@@ -758,7 +726,6 @@ def import_data():
                             preference.expiry_date = expiry_date
                             preference.fixed_lat = fixed_lat
                             preference.fixed_lon = fixed_lon
-                            
                             updated += 1
                         else:
                             # Create new preference
@@ -774,49 +741,41 @@ def import_data():
                                 fixed_lat=fixed_lat,
                                 fixed_lon=fixed_lon
                             )
-                            
                             db.session.add(preference)
-                            db.session.flush()  # Get ID without committing
+                            db.session.flush()  # Get ID without committing yet
                             added += 1
                         
-                        # Process products if they are in the CSV
-                        product_count = 0
-                        if 'products' in row and row['products']:
-                            # First, delete existing products
-                            for product in preference.products:
-                                db.session.delete(product)
-                            
-                            # Parse the products string
-                            products_str = str(row['products']).strip()
-                            for product_data in products_str.split(';'):
-                                if product_data and ':' in product_data:
-                                    try:
-                                        parts = product_data.split(':')
-                                        if len(parts) >= 4:
-                                            name = parts[0].strip()
-                                            min_price = safe_int(parts[1].strip(), 0)
-                                            max_price = safe_int(parts[2].strip(), 0)
-                                            preferred = safe_int(parts[3].strip(), 0)
-                                            
-                                            # Validate the product name is in our list
-                                            if name in IPHONE_MODELS:
-                                                product_pref = ProductPreference(
-                                                    preference_id=preference.id,
-                                                    product_name=name,
-                                                    max_price=max_price,
-                                                    is_preferred=(preferred == 1)
-                                                )
-                                                db.session.add(product_pref)
-                                                product_count += 1
-                                            else:
-                                                error_log.append(f"Row {row_num}: ({unique_userid}) Unknown product name: {name}")
-                                        else:
-                                            error_log.append(f"Row {row_num}: ({unique_userid}) Invalid product format: {product_data}")
-                                    except Exception as product_error:
-                                        error_log.append(f"Row {row_num}: ({unique_userid}) Error processing product: {product_data}, Error: {product_error}")
+                        # Process product preferences
+                        # First, delete existing products
+                        for product in preference.products:
+                            db.session.delete(product)
                         
-                        # If no products were found or processed, add default products
-                        if product_count == 0:
+                        # Add new products from products.csv data
+                        products_added = 0
+                        if unique_userid in products_data:
+                            for product_row in products_data[unique_userid]:
+                                try:
+                                    name = product_row.get('name', '').strip()
+                                    if name in IPHONE_MODELS:
+                                        max_price = int(product_row.get('max_price', 0))
+                                        preferred = int(product_row.get('preferred', 0)) == 1
+                                        
+                                        product_pref = ProductPreference(
+                                            preference_id=preference.id,
+                                            product_name=name,
+                                            max_price=max_price,
+                                            is_preferred=preferred
+                                        )
+                                        db.session.add(product_pref)
+                                        products_added += 1
+                                    else:
+                                        print(f"Warning: Unknown product {name} for {unique_userid}")
+                                except Exception as product_error:
+                                    print(f"Error adding product for {unique_userid}: {product_error}")
+                        
+                        # If no products were added, add defaults
+                        if products_added == 0:
+                            print(f"No products found for {unique_userid}, adding defaults")
                             for model in IPHONE_MODELS:
                                 product_pref = ProductPreference(
                                     preference_id=preference.id,
@@ -831,33 +790,190 @@ def import_data():
                     except Exception as e:
                         db.session.rollback()
                         errors += 1
-                        error_message = f"Row {row_num}: General error: {str(e)}"
-                        print(error_message)
-                        error_log.append(error_message)
+                        print(f"Error processing {unique_userid}: {e}")
                 
-                # Create result message
+                # Clean up temporary files
+                import shutil
+                shutil.rmtree(temp_dir)
+                
+                # Show results
                 message = f'Import completed. Added: {added}, Updated: {updated}'
-                if skipped > 0:
-                    message += f', Skipped: {skipped}'
                 if errors > 0:
                     message += f', Errors: {errors}'
-                    # Log errors to console
-                    print("\n".join(error_log))
+                    flash(message, 'warning')
+                else:
+                    flash(message, 'success')
+                
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                flash(f'Error processing ZIP file: {str(e)}', 'danger')
+            
+            return redirect(url_for('admin.dashboard'))
+        
+        # Handle single CSV file (old method)
+        elif file and file.filename.endswith('.csv'):
+            try:
+                # Read file into memory 
+                stream = io.StringIO(file.stream.read().decode("UTF-8-sig"))
+                
+                # Read CSV into a list of dictionaries
+                csv_reader = csv.DictReader(stream)
+                
+                # Counters for statistics
+                added = 0
+                updated = 0
+                errors = 0
+                
+                for row in csv_reader:
+                    try:
+                        # Skip rows that are likely comments or instructions
+                        if not row.get('unique_userid') or row.get('unique_userid').startswith('---'):
+                            continue
+                            
+                        # Get the unique_userid from the CSV
+                        unique_userid = row['unique_userid'].strip()
+                        
+                        # Extract location from the CSV
+                        location = row['location'].strip() if row.get('location') else ''
+                        if not location:
+                            raise ValueError("Location is required but was empty")
+                        
+                        # Determine notification mode from mode flags
+                        # Convert flag values to integers (defaulting to 0)
+                        mode_only_preferred = int(row.get('mode_only_preferred', 0))
+                        non_good_deals = int(row.get('non_good_deals', 0))
+                        good_deals = int(row.get('good_deals', 0))
+                        near_good_deals = int(row.get('near_good_deals', 0))
+                        
+                        if non_good_deals == 1 and mode_only_preferred == 0 and good_deals == 0 and near_good_deals == 0:
+                            notification_mode = 'all'
+                        elif mode_only_preferred == 1 and non_good_deals == 0 and good_deals == 0 and near_good_deals == 0:
+                            notification_mode = 'only_preferred'
+                        elif mode_only_preferred == 1 and non_good_deals == 0 and good_deals == 0 and near_good_deals == 1:
+                            notification_mode = 'near_good_deal'
+                        elif mode_only_preferred == 1 and non_good_deals == 0 and good_deals == 1 and near_good_deals == 1:
+                            notification_mode = 'good_deal'
+                        else:
+                            notification_mode = 'all'  # Default
+                            
+                        # First try to find by unique_userid if it exists in our database
+                        preference = Preference.query.filter_by(unique_userid=unique_userid).first()
+                        
+                        # If not found by unique_userid, try to match by the format "user_X"
+                        if not preference and unique_userid.startswith('user_'):
+                            try:
+                                pref_id = int(unique_userid.split('_')[1])
+                                preference = Preference.query.get(pref_id)
+                            except:
+                                preference = None
+                                
+                        if preference:
+                            # Update existing preference
+                            preference.location = location
+                            preference.suburb = row.get('suburb', '').strip() if row.get('suburb') else ''
+                            preference.notification_mode = notification_mode
+                            
+                            # Update admin fields
+                            preference.unique_userid = unique_userid
+                            preference.user_id = row.get('user_id', '').strip() if row.get('user_id') else ''
+                            preference.user_name = row.get('user_name', '').strip() if row.get('user_name') else ''
+                            preference.activation_status = int(row.get('activation_status', 1)) == 1
+                            
+                            # Handle expiry date
+                            expiry_date = row.get('expiry_date', '').strip() if row.get('expiry_date') else ''
+                            if expiry_date:
+                                try:
+                                    preference.expiry_date = datetime.strptime(expiry_date, '%Y-%m-%d').date()
+                                except ValueError:
+                                    preference.expiry_date = None
+                            else:
+                                preference.expiry_date = None
+                                
+                            preference.fixed_lat = row.get('fixed_lat', '').strip() if row.get('fixed_lat') else ''
+                            preference.fixed_lon = row.get('fixed_lon', '').strip() if row.get('fixed_lon') else ''
+                            
+                            updated += 1
+                        else:
+                            # Create new preference
+                            preference = Preference(
+                                location=location,
+                                suburb=row.get('suburb', '').strip() if row.get('suburb') else '',
+                                notification_mode=notification_mode,
+                                unique_userid=unique_userid,
+                                user_id=row.get('user_id', '').strip() if row.get('user_id') else '',
+                                user_name=row.get('user_name', '').strip() if row.get('user_name') else '',
+                                activation_status=int(row.get('activation_status', 1)) == 1
+                            )
+                            
+                            # Handle expiry date
+                            expiry_date = row.get('expiry_date', '').strip() if row.get('expiry_date') else ''
+                            if expiry_date:
+                                try:
+                                    preference.expiry_date = datetime.strptime(expiry_date, '%Y-%m-%d').date()
+                                except ValueError:
+                                    preference.expiry_date = None
+                                    
+                            preference.fixed_lat = row.get('fixed_lat', '').strip() if row.get('fixed_lat') else ''
+                            preference.fixed_lon = row.get('fixed_lon', '').strip() if row.get('fixed_lon') else ''
+                            
+                            db.session.add(preference)
+                            db.session.flush()  # Get ID without committing
+                            added += 1
+                        
+                        # Process products
+                        # First, delete existing products
+                        for product in preference.products:
+                            db.session.delete(product)
+                        
+                        # Add new products from CSV
+                        if 'products' in row and row['products']:
+                            for product_data in row['products'].split(';'):
+                                if product_data and ':' in product_data:
+                                    try:
+                                        parts = product_data.split(':')
+                                        if len(parts) >= 4:
+                                            name = parts[0].strip()
+                                            min_price = parts[1].strip() or '0'
+                                            max_price = parts[2].strip() or '0'
+                                            preferred = parts[3].strip() or '0'
+                                            
+                                            # Validate the product name is in our list
+                                            if name in IPHONE_MODELS:
+                                                product_pref = ProductPreference(
+                                                    preference_id=preference.id,
+                                                    product_name=name,
+                                                    max_price=int(float(max_price)),
+                                                    is_preferred=(int(preferred) == 1)
+                                                )
+                                                db.session.add(product_pref)
+                                            else:
+                                                print(f"Warning: Skipping unknown product name: {name}")
+                                        else:
+                                            print(f"Warning: Invalid product format: {product_data}")
+                                    except Exception as product_error:
+                                        print(f"Error processing product: {product_data}, Error: {product_error}")
+                        
+                        db.session.commit()
+                        
+                    except Exception as e:
+                        db.session.rollback()
+                        errors += 1
+                        print(f"Error processing row: {e}")
+                
+                message = f'Import completed. Added: {added}, Updated: {updated}'
+                if errors > 0:
+                    message += f', Errors: {errors}'
                     flash(message, 'warning')
                 else:
                     flash(message, 'success')
                     
             except Exception as e:
                 flash(f'Error processing CSV: {str(e)}', 'danger')
-                import traceback
-                traceback.print_exc()
             
             return redirect(url_for('admin.dashboard'))
-        elif file and file.filename.endswith(('.xlsx', '.xls')):
-            flash('Excel files (.xlsx/.xls) are not directly supported. Please export as CSV.', 'warning')
-            return redirect(request.url)
         else:
-            flash('Please upload a CSV file', 'danger')
+            flash('Please upload a CSV or ZIP file', 'danger')
             return redirect(request.url)
     
     # GET request - show upload form
